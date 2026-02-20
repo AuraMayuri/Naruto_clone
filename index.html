@@ -2,45 +2,64 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Camera Test</title>
+<title>Clone iPad Fix</title>
 <style>
 body{
   margin:0;
+  overflow:hidden;
   background:black;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  height:100vh;
 }
-video{
-  width:100%;
-  max-width:600px;
+canvas{
+  position:absolute;
+  top:0;
+  left:0;
 }
 button{
   position:absolute;
   top:40%;
+  left:50%;
+  transform:translate(-50%,-50%);
   padding:20px 40px;
   font-size:20px;
+  z-index:10;
 }
 </style>
 </head>
 <body>
 
-<button onclick="startCam()">เปิดกล้อง</button>
-<video id="video" playsinline autoplay></video>
+<button id="startBtn">เปิดกล้อง</button>
+<video id="video" playsinline muted style="display:none;"></video>
+<canvas id="canvas"></canvas>
 
 <script>
-async function startCam(){
-  try{
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "user" },
-      audio: false
-    });
-    const video = document.getElementById("video");
-    video.srcObject = stream;
-  }catch(err){
-    alert("Error: "+err.message);
-  }
+const btn = document.getElementById("startBtn");
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+btn.onclick = async () => {
+
+  btn.style.display="none";
+
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video:{ facingMode:"user" }
+  });
+
+  video.srcObject = stream;
+
+  video.onloadedmetadata = () => {
+    video.play();
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    drawLoop();
+  };
+};
+
+function drawLoop(){
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  requestAnimationFrame(drawLoop);
 }
 </script>
 
