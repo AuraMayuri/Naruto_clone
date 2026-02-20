@@ -81,7 +81,9 @@ btn.onclick = async () => {
   let holdStart = 0;
 let isCloning = false;
 let clones = [];
+  let debugText = "";
 
+  
 hands.onResults(results=>{
 
   ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -116,7 +118,13 @@ hands.onResults(results=>{
         {color:"red",lineWidth:2});
     }
 
-    if(distance < 0.06){
+    
+    debugText = "distance: " + distance.toFixed(3);
+    ctx.fillStyle="yellow";
+    ctx.font="20px Arial";
+    ctx.fillText(debugText,20,40);
+
+    if(distance < 0.12){
 
       if(holdStart === 0){
         holdStart = Date.now();
