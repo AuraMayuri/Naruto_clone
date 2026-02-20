@@ -62,22 +62,73 @@ btn.onclick = async () => {
     minTrackingConfidence:0.6
   });
 
-  hands.onResults(results=>{
+  // hands.onResults(results=>{
 
-    ctx.clearRect(0,0,canvas.width,canvas.height);
+  //   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    ctx.drawImage(video,0,0,
-      canvas.width,canvas.height);
+  //   ctx.drawImage(video,0,0,
+  //     canvas.width,canvas.height);
 
-    if(results.multiHandLandmarks){
-      for(const landmarks of results.multiHandLandmarks){
-        drawConnectors(ctx,landmarks,HAND_CONNECTIONS,
-          {color:"lime",lineWidth:3});
-        drawLandmarks(ctx,landmarks,
-          {color:"red",lineWidth:2});
-      }
+  //   if(results.multiHandLandmarks){
+  //     for(const landmarks of results.multiHandLandmarks){
+  //       drawConnectors(ctx,landmarks,HAND_CONNECTIONS,
+  //         {color:"lime",lineWidth:3});
+  //       drawLandmarks(ctx,landmarks,
+  //         {color:"red",lineWidth:2});
+  //     }
+  //   }
+  // });
+  let holdStart = 0;
+
+hands.onResults(results=>{
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+
+  if(results.multiHandLandmarks &&
+     results.multiHandLandmarks.length===2){
+
+    const hand1 = results.multiHandLandmarks[0];
+    const hand2 = results.multiHandLandmarks[1];
+
+    const index1 = hand1[8]; // นิ้วชี้มือแรก
+    const index2 = hand2[8]; // นิ้วชี้มือสอง
+
+    const dx = index1.x - index2.x;
+    const dy = index1.y - index2.y;
+    const distance = Math.sqrt(dx*dx + dy*dy);
+
+    // วาดเส้นเขียวแดง
+    for(const landmarks of results.multiHandLandmarks){
+      drawConnectors(ctx,landmarks,HAND_CONNECTIONS,
+        {color:"lime",lineWidth:3});
+      drawLandmarks(ctx,landmarks,
+        {color:"red",lineWidth:2});
     }
-  });
+
+    // ถ้านิ้วชี้ใกล้กันมาก
+    if(distance < 0.05){
+
+      if(holdStart === 0){
+        holdStart = Date.now();
+      }
+
+      // ค้าง 1 วินาที
+      if(Date.now() - holdStart > 1000){
+        createClone(video);
+        holdStart = 0;
+      }
+
+    } else {
+      holdStart = 0;
+    }
+
+  } else {
+    holdStart = 0;
+  }
+});
+  
+ 
 
   async function detectLoop(){
     await hands.send({image:video});
