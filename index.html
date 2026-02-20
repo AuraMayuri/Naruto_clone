@@ -99,7 +99,15 @@ const camera = new Camera(videoElement, {
   height: 480
 });
 
-camera.start();
+camera.start();<script>
+async function startCamera() {
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+  videoElement.srcObject = stream;
+  await videoElement.play();
+}
+
+startCamera();
+</script>
 </script>
 
 </body>
