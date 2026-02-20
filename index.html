@@ -2,127 +2,46 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Clone Effect</title>
+<title>Camera Test</title>
 <style>
-body {
-  margin: 0;
-  overflow: hidden;
-  background: black;
-  text-align:center;
+body{
+  margin:0;
+  background:black;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
 }
-canvas {
-  position: fixed;
-  top: 0;
-  left: 0;
+video{
+  width:100%;
+  max-width:600px;
 }
-#startBtn{
+button{
   position:absolute;
   top:40%;
-  left:50%;
-  transform:translate(-50%,-50%);
   padding:20px 40px;
   font-size:20px;
-  border:none;
-  border-radius:12px;
-  background:#00ff99;
-  color:black;
-  z-index:10;
 }
 </style>
 </head>
 <body>
 
-<button id="startBtn">กดเพื่อเปิดกล้อง</button>
-
-<video id="video" playsinline muted style="display:none;"></video>
-<canvas id="output"></canvas>
-
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<button onclick="startCam()">เปิดกล้อง</button>
+<video id="video" playsinline autoplay></video>
 
 <script>
-const startBtn = document.getElementById("startBtn");
-const videoElement = document.getElementById("video");
-const canvasElement = document.getElementById("output");
-const ctx = canvasElement.getContext("2d");
-
-canvasElement.width = window.innerWidth;
-canvasElement.height = window.innerHeight;
-
-let clones = [];
-let lastCapture = 0;
-
-startBtn.onclick = async () => {
-
-  startBtn.style.display="none";
-
-  const stream = await navigator.mediaDevices.getUserMedia({ video:true });
-  videoElement.srcObject = stream;
-  await videoElement.play();
-
-  const hands = new Hands({
-    locateFile: file =>
-      `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-  });
-
-  hands.setOptions({
-    maxNumHands: 2,
-    minDetectionConfidence: 0.7,
-    minTrackingConfidence: 0.7
-  });
-
-  hands.onResults(results => {
-
-    ctx.clearRect(0,0,canvasElement.width,canvasElement.height);
-
-    ctx.drawImage(results.image,0,0,
-      canvasElement.width,canvasElement.height);
-
-    clones.forEach((img,i)=>{
-      ctx.globalAlpha=0.5;
-      ctx.drawImage(img,0,-120-i*50,
-        canvasElement.width,canvasElement.height);
+async function startCam(){
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user" },
+      audio: false
     });
-
-    ctx.globalAlpha=1;
-
-    if(results.multiHandLandmarks){
-      for(const landmarks of results.multiHandLandmarks){
-        drawConnectors(ctx,landmarks,HAND_CONNECTIONS,
-          {color:"lime",lineWidth:4});
-        drawLandmarks(ctx,landmarks,
-          {color:"red",lineWidth:2});
-      }
-    }
-
-    if(results.multiHandLandmarks &&
-       results.multiHandLandmarks.length===2 &&
-       Date.now()-lastCapture>1500){
-
-      const temp=document.createElement("canvas");
-      temp.width=canvasElement.width;
-      temp.height=canvasElement.height;
-      temp.getContext("2d").drawImage(
-        results.image,0,0,
-        canvasElement.width,canvasElement.height
-      );
-
-      clones.push(temp);
-      lastCapture=Date.now();
-    }
-  });
-
-  const camera = new Camera(videoElement,{
-    onFrame: async()=>{
-      await hands.send({image:videoElement});
-    },
-    width:640,
-    height:480
-  });
-
-  camera.start();
-};
+    const video = document.getElementById("video");
+    video.srcObject = stream;
+  }catch(err){
+    alert("Error: "+err.message);
+  }
+}
 </script>
 
 </body>
