@@ -49,7 +49,6 @@ let frozenBackground=null;
 let personImage=null;
 let smoke=[];
 let finished=false;
-let cloneSpacing = 70;
 
 // กล้อง
 navigator.mediaDevices.getUserMedia({video:true})
@@ -258,7 +257,6 @@ if(mode==="split" && personImage){
      ctx.drawImage(
        personImage,
        45*i,
-      cloneSpacing * i,
        0,
        canvas.width,
        canvas.height
