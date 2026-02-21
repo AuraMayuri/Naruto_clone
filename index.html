@@ -49,6 +49,7 @@ let frozenBackground=null;
 let personImage=null;
 let smoke=[];
 let finished=false;
+let cloneSpacing = 70;
 
 // กล้อง
 navigator.mediaDevices.getUserMedia({video:true})
@@ -230,8 +231,8 @@ function animate(){
  // แยกร่าง
 if(mode==="split" && personImage){
 
-   // ===== 1. ร่างหลัง 3 =====
-   for(let i=1;i<=3;i++){
+   // ===== 1. ร่างหลัง  =====
+   for(let i=1;i<=5;i++){
      ctx.globalAlpha=1;   // เข้มขึ้น
      ctx.drawImage(
        personImage,
@@ -242,8 +243,8 @@ if(mode==="split" && personImage){
      );
    }
 
-   // ===== 2. ร่างซ้าย 7 ขวา 7 (ซ้อนหลัง) =====
-   for(let i=1;i<=7;i++){
+   // ===== 2. ร่างซ้าย  ขวา (ซ้อนหลัง) =====
+   for(let i=1;i<=10;i++){
      ctx.globalAlpha=1;   // เข้มขึ้นชัด
 
      ctx.drawImage(
@@ -257,6 +258,7 @@ if(mode==="split" && personImage){
      ctx.drawImage(
        personImage,
        45*i,
+      cloneSpacing * i,
        0,
        canvas.width,
        canvas.height
