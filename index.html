@@ -129,6 +129,10 @@ hands.onResults(results => {
   if(showCartoon){
   drawCartoon(canvas.width - 100,100);
 }
+ctx.fillStyle="white";
+ctx.fillText("dist: "+distance.toFixed(3),20,40);
+
+});
 
   
 function drawCartoon(x,y){
@@ -153,9 +157,6 @@ function drawCartoon(x,y){
   ctx.stroke();
 }
   
-});
-
-
   
 
 
