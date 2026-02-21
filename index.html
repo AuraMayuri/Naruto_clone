@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Hand Smoke Effect</title>
+<title>Smoke Poof Effect</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
@@ -44,7 +44,7 @@ canvas.height = window.innerHeight;
 let lastProcessTime = 0;
 const PROCESS_INTERVAL = 250;
 
-let smokeParticles = [];
+let smokeBursts = [];
 
 // เปิดกล้อง
 async function initCamera(){
@@ -68,41 +68,32 @@ hands.setOptions({
   minTrackingConfidence:0.7
 });
 
-// 🔥 สร้างควัน
-function createSmoke(x,y){
-  for(let i=0;i<12;i++){
-    smokeParticles.push({
-      x:x,
-      y:y,
-      size:20+Math.random()*20,
-      alpha:1,
-      vx:(Math.random()-0.5)*1.5,
-      vy:-Math.random()*2-1
-    });
-  }
+// 🔥 สร้างควันระเบิด
+function createSmokeBurst(x,y){
+  smokeBursts.push({
+    x:x,
+    y:y,
+    size:0,
+    alpha:1
+  });
 }
 
-// 🔥 อัพเดทควัน
-function updateSmoke(){
-  for(let i=smokeParticles.length-1;i>=0;i--){
-    let p = smokeParticles[i];
-    p.x += p.vx;
-    p.y += p.vy;
-    p.alpha -= 0.02;
+// 🔥 วาดควันระเบิด
+function drawSmokeBursts(){
+  for(let i=smokeBursts.length-1;i>=0;i--){
+    let s = smokeBursts[i];
 
-    if(p.alpha <= 0){
-      smokeParticles.splice(i,1);
-    }
-  }
-}
+    s.size += 8;      // ขยายเร็ว
+    s.alpha -= 0.05;  // จางลง
 
-// 🔥 วาดควัน
-function drawSmoke(){
-  for(let p of smokeParticles){
     ctx.beginPath();
-    ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
-    ctx.fillStyle="rgba(200,200,200,"+p.alpha+")";
+    ctx.arc(s.x,s.y,s.size,0,Math.PI*2);
+    ctx.fillStyle = "rgba(220,220,220,"+s.alpha+")";
     ctx.fill();
+
+    if(s.alpha <= 0){
+      smokeBursts.splice(i,1);
+    }
   }
 }
 
@@ -136,8 +127,7 @@ hands.onResults(results=>{
     }
 
     if(distance < 0.06){
-      // สร้างควันตรงกลางจอ
-      createSmoke(canvas.width/2, canvas.height/2);
+      createSmokeBurst(canvas.width/2, canvas.height/2);
     }
   }
 
@@ -145,8 +135,7 @@ hands.onResults(results=>{
   ctx.font="24px Arial";
   ctx.fillText(distanceText,20,40);
 
-  updateSmoke();
-  drawSmoke();
+  drawSmokeBursts();
 
 });
 
