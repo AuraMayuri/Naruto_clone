@@ -2,8 +2,9 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Perfect Split</title>
+<title>Real Ninja Split</title>
 
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
 
 <style>
@@ -24,93 +25,136 @@ video,canvas{
 
 <script>
 
-const video=document.getElementById("video");
-const canvas=document.getElementById("canvas");
-const ctx=canvas.getContext("2d");
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
 
-canvas.width=window.innerWidth;
-canvas.height=window.innerHeight;
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-let splitActive=false;
-let smoke=[];
-let cooldown=false;
+let mode = "idle"; 
+// idle → smoke → split → cooldown
+
+let smoke = [];
+let splitTimer = 0;
+let cooldownTimer = 0;
 
 // เปิดกล้อง
-async function init(){
-  const stream=await navigator.mediaDevices.getUserMedia({
-    video:{width:640,height:480}
-  });
-  video.srcObject=stream;
-}
-init();
+navigator.mediaDevices.getUserMedia({video:true})
+.then(stream=>video.srcObject=stream);
 
-// โหลด segmentation
-const segmenter=new SelfieSegmentation({
-  locateFile:(file)=>{
-    return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`;
-  }
+// ===== Hands =====
+const hands = new Hands({
+  locateFile:(file)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+});
+hands.setOptions({
+  maxNumHands:2,
+  modelComplexity:0,
+  minDetectionConfidence:0.7,
+  minTrackingConfidence:0.7
 });
 
-segmenter.setOptions({ modelSelection:1 });
+// ===== Segmentation =====
+const segmenter = new SelfieSegmentation({
+  locateFile:(file)=>`https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
+});
+segmenter.setOptions({modelSelection:1});
 
-segmenter.onResults(results=>{
+// ===== ตรวจ gesture =====
+hands.onResults(res=>{
+  if(mode !== "idle") return;
 
-  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(res.multiHandLandmarks &&
+     res.multiHandLandmarks.length===2){
 
-  // ===== 1. วาดพื้นหลัง =====
-  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+    const h1=res.multiHandLandmarks[0][8];
+    const h2=res.multiHandLandmarks[1][8];
 
-  if(splitActive){
+    const dx=h1.x-h2.x;
+    const dy=h1.y-h2.y;
+    const dist=Math.sqrt(dx*dx+dy*dy);
 
-    // ===== 2. สร้าง layer คนที่ถูกตัด =====
-    ctx.save();
-
-    // วาด mask ก่อน
-    ctx.drawImage(results.segmentationMask,
-      0,0,canvas.width,canvas.height);
-
-    // ให้ video แสดงเฉพาะส่วนที่ mask ขาว
-    ctx.globalCompositeOperation='source-in';
-
-    // ===== 3. วาด 10 ร่าง =====
-    for(let i=1;i<=5;i++){
-
-      ctx.globalAlpha=0.4;
-      ctx.drawImage(video,-35*i,0,
-        canvas.width,canvas.height);
-
-      ctx.drawImage(video,35*i,0,
-        canvas.width,canvas.height);
+    if(dist < 0.05){
+      triggerSmoke();
     }
-
-    ctx.globalAlpha=1;
-    ctx.restore();
   }
-
-  updateSmoke();
-  drawSmoke();
 });
 
-// ===== ควันครั้งเดียว =====
-function createSmoke(){
-  for(let i=0;i<25;i++){
+function triggerSmoke(){
+  mode="smoke";
+
+  for(let i=0;i<30;i++){
     smoke.push({
       x:canvas.width/2,
       y:canvas.height/2,
       size:20+Math.random()*30,
       alpha:1,
-      vx:(Math.random()-0.5)*4,
-      vy:(Math.random()-0.5)*4
+      vx:(Math.random()-0.5)*5,
+      vy:(Math.random()-0.5)*5
     });
   }
+
+  setTimeout(()=>{
+    mode="split";
+    splitTimer=90;
+  },700);
 }
 
+// ===== segmentation loop =====
+segmenter.onResults(results=>{
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // พื้นหลังปกติ
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+
+  if(mode==="split"){
+
+    ctx.save();
+
+    // ใช้ mask ตัดตัวคน
+    ctx.drawImage(results.segmentationMask,
+      0,0,canvas.width,canvas.height);
+
+    ctx.globalCompositeOperation="source-in";
+
+    // วาด 10 ร่าง
+    for(let i=1;i<=5;i++){
+      ctx.globalAlpha=0.4;
+      ctx.drawImage(video,-40*i,0,
+        canvas.width,canvas.height);
+      ctx.drawImage(video,40*i,0,
+        canvas.width,canvas.height);
+    }
+
+    ctx.restore();
+    ctx.globalAlpha=1;
+
+    splitTimer--;
+    if(splitTimer<=0){
+      mode="cooldown";
+      cooldownTimer=60;
+    }
+  }
+
+  updateSmoke();
+  drawSmoke();
+
+  if(mode==="cooldown"){
+    cooldownTimer--;
+    if(cooldownTimer<=0){
+      mode="idle";
+    }
+  }
+});
+
+// ===== ควัน =====
 function updateSmoke(){
   for(let i=smoke.length-1;i>=0;i--){
     let p=smoke[i];
     p.x+=p.vx;
     p.y+=p.vy;
-    p.alpha-=0.03;
+    p.alpha-=0.04;
     if(p.alpha<=0) smoke.splice(i,1);
   }
 }
@@ -124,25 +168,9 @@ function drawSmoke(){
   }
 }
 
-// ===== trigger แตะหน้าจอ =====
-canvas.addEventListener("click",()=>{
-  if(cooldown) return;
-
-  cooldown=true;
-  splitActive=true;
-  createSmoke();
-
-  setTimeout(()=>{
-    splitActive=false;
-  },1500);
-
-  setTimeout(()=>{
-    cooldown=false;
-  },2000);
-});
-
 // loop
 function loop(){
+  hands.send({image:video});
   segmenter.send({image:video});
   requestAnimationFrame(loop);
 }
@@ -152,6 +180,5 @@ video.addEventListener("loadeddata",()=>{
 });
 
 </script>
-
 </body>
 </html>
