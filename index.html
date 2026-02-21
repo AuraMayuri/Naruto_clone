@@ -1,19 +1,86 @@
 <!DOCTYPE html>
 <html>
-<body style="margin:0;background:black;">
-<video id="video" autoplay playsinline style="width:100vw;height:100vh;object-fit:cover;"></video>
+<head>
+<meta charset="UTF-8">
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<style>
+body{margin:0;background:black;}
+canvas{position:absolute;top:0;left:0;}
+#log{
+position:fixed;
+top:0;
+left:0;
+color:#00ff88;
+background:rgba(0,0,0,0.7);
+font-size:12px;
+padding:10px;
+max-height:40vh;
+overflow:auto;
+}
+</style>
+</head>
+<body>
+
+<video id="video" autoplay playsinline style="display:none"></video>
+<canvas id="canvas"></canvas>
+<div id="log"></div>
 
 <script>
 const video=document.getElementById("video");
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
+const logDiv=document.getElementById("log");
 
-navigator.mediaDevices.getUserMedia({video:true})
-.then(stream=>{
-  video.srcObject=stream;
-  console.log("Camera working");
-})
-.catch(err=>{
-  console.log("Camera error:",err);
+canvas.width=window.innerWidth;
+canvas.height=window.innerHeight;
+
+function log(msg){
+ logDiv.innerHTML+=msg+"<br>";
+ logDiv.scrollTop=logDiv.scrollHeight;
+}
+
+const hands=new Hands({
+ locateFile:(file)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
 });
+
+hands.setOptions({
+ maxNumHands:2,
+ minDetectionConfidence:0.7,
+ minTrackingConfidence:0.7
+});
+
+hands.onResults(results=>{
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+ ctx.drawImage(video,0,0,canvas.width,canvas.height);
+
+ if(results.multiHandLandmarks){
+   log("Hands detected: "+results.multiHandLandmarks.length);
+
+   results.multiHandLandmarks.forEach(hand=>{
+     const p=hand[8];
+     ctx.fillStyle="red";
+     ctx.beginPath();
+     ctx.arc(p.x*canvas.width,p.y*canvas.height,10,0,Math.PI*2);
+     ctx.fill();
+   });
+ }
+});
+
+const camera=new Camera(video,{
+ onFrame:async()=>{
+   await hands.send({image:video});
+ },
+ width:640,
+ height:480
+});
+
+camera.start();
+
+log("Camera started");
 </script>
+
 </body>
 </html>
