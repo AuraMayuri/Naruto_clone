@@ -50,6 +50,10 @@ let personImage=null;
 let smoke=[];
 let finished=false;
 
+let splitDelay = 800;      // หน่วงก่อนแยก (ms)
+let splitSpacing = 70;     // ระยะห่างซ้ายขวา
+let backSpacing = 50;      // ระยะถอยหลัง
+
 // กล้อง
 navigator.mediaDevices.getUserMedia({video:true})
 .then(s=>video.srcObject=s);
@@ -135,7 +139,17 @@ segmenter.onResults(results=>{
 
  logDiv.innerHTML += "<br>Mask applied";
 
- mode="split";
+ // mode="split";
+ 
+logDiv.innerHTML += "<br>Waiting to split...";
+
+setTimeout(()=>{
+   mode="split";
+   logDiv.innerHTML += "<br>Split started";
+}, splitDelay);
+ 
+
+
 });
 
 // ===== trigger =====
@@ -191,22 +205,35 @@ function animate(){
  if(mode==="split" && personImage){
 
    // หลัง 3
-   for(let i=1;i<=3;i++){
-     ctx.globalAlpha=0.2;
-     ctx.drawImage(personImage,0,-30*i,
-       canvas.width,canvas.height);
-   }
+for(let i=1;i<=3;i++){
+  ctx.globalAlpha=0.25;
+  ctx.drawImage(personImage,
+    0,
+    -backSpacing*i,
+    canvas.width,
+    canvas.height
+  );
+}
 
-   // ซ้าย 7 ขวา 7
-   for(let i=1;i<=7;i++){
-     ctx.globalAlpha=0.5;
-     ctx.drawImage(personImage,-40*i,0,
-       canvas.width,canvas.height);
-     ctx.drawImage(personImage,40*i,0,
-       canvas.width,canvas.height);
-   }
+// ซ้าย 7 ขวา 7
+for(let i=1;i<=7;i++){
+  ctx.globalAlpha=0.5;
+  ctx.drawImage(personImage,
+    -splitSpacing*i,
+    0,
+    canvas.width,
+    canvas.height
+  );
 
-   ctx.globalAlpha=1;
+  ctx.drawImage(personImage,
+    splitSpacing*i,
+    0,
+    canvas.width,
+    canvas.height
+  );
+}
+
+ctx.globalAlpha=1;
 
    finished=true; // จบ ไม่วนอีก
  }
