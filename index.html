@@ -92,7 +92,7 @@ hands.onResults(results=>{
   // วาดร่างซ้อนก่อน
   clones.forEach((img,i)=>{
     ctx.globalAlpha=0.5;
-    ctx.drawImage(img,0,-60*(i+1),
+    ctx.drawImage(img,0,-50*(i+1),
       canvas.width,canvas.height);
   });
   ctx.globalAlpha=1;
@@ -124,7 +124,7 @@ hands.onResults(results=>{
     ctx.font="20px Arial";
     ctx.fillText(debugText,20,40);
 
-    if(distance < 0.12){
+    if(distance < 0.05){
 
       if(holdStart === 0){
         holdStart = Date.now();
@@ -143,33 +143,59 @@ hands.onResults(results=>{
   }
 });
 
+//   function createClone(){
+
+//   const temp=document.createElement("canvas");
+//   temp.width=canvas.width;
+//   temp.height=canvas.height;
+//   const tctx=temp.getContext("2d");
+
+//   tctx.drawImage(video,0,0,
+//     canvas.width,canvas.height);
+
+//   clones.push(temp);
+
+//   // เอฟเฟคแฟลช
+//   flash.style.opacity=1;
+//   setTimeout(()=>flash.style.opacity=0,150);
+
+//   // ควัน
+//   smoke.style.opacity=1;
+//   setTimeout(()=>smoke.style.opacity=0,400);
+
+//   // เสียง
+//   const audio=new Audio(
+//     "https://actions.google.com/sounds/v1/cartoon/poof.ogg"
+//   );
+//   audio.play();
+// }
   function createClone(){
 
-  const temp=document.createElement("canvas");
-  temp.width=canvas.width;
-  temp.height=canvas.height;
-  const tctx=temp.getContext("2d");
+  // แคปภาพจาก canvas ปัจจุบัน (เบากว่า)
+  const img = new Image();
+  img.src = canvas.toDataURL("image/jpeg", 0.6);
 
-  tctx.drawImage(video,0,0,
-    canvas.width,canvas.height);
+  img.onload = () => {
+    clones.push(img);
+  };
 
-  clones.push(temp);
+  // จำกัดไม่ให้ร่างเยอะเกิน
+  if(clones.length > 3){
+    clones.shift();
+  }
 
   // เอฟเฟคแฟลช
-  flash.style.opacity=1;
+  flash.style.opacity = 1;
   setTimeout(()=>flash.style.opacity=0,150);
 
-  // ควัน
-  smoke.style.opacity=1;
-  setTimeout(()=>smoke.style.opacity=0,400);
-
-  // เสียง
-  const audio=new Audio(
-    "https://actions.google.com/sounds/v1/cartoon/poof.ogg"
-  );
-  audio.play();
+  // เสียง (กัน error)
+  try{
+    const audio = new Audio(
+      "https://actions.google.com/sounds/v1/cartoon/poof.ogg"
+    );
+    audio.play();
+  }catch(e){}
 }
-  
  
 
   async function detectLoop(){
