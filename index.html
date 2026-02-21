@@ -78,20 +78,50 @@ btn.onclick = async () => {
   //     }
   //   }
   // });
-  let holdStart = 0;
+ let cloneImage = null;
+let isCapturing = false;
+let holdStart = 0;
 let isCloning = false;
 let clones = [];
   let debugText = "";
-//   let cloneCount = 0;
-// let holdStart = 0;
-
 let showCartoon = false;
   
+  async function captureFrame() {
+
+  if(isCapturing) return;
+  isCapturing = true;
+
+  try {
+    const bitmap = await createImageBitmap(video);
+    cloneImage = bitmap;
+  } catch(e) {
+    console.log("capture error", e);
+  }
+
+  isCapturing = false;
+}
+
   
 hands.onResults(results => {
 
   ctx.clearRect(0,0,canvas.width,canvas.height);
+    if(cloneImage){
+  ctx.globalAlpha = 0.5;
+  ctx.drawImage(
+    cloneImage,
+    -30,   // เลื่อนซ้าย
+    -60,   // เลื่อนขึ้น
+    canvas.width,
+    canvas.height
+  );
+  ctx.globalAlpha = 1;
+}
+
+
+  
   ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  
+
 
   if(results.multiHandLandmarks &&
      results.multiHandLandmarks.length === 2){
@@ -116,14 +146,28 @@ hands.onResults(results => {
     }
 
     // ถ้ามือประสานใกล้กัน
+  //   if(distance < 0.08){
+  //     showCartoon = true;
+  //   } else {
+  //     showCartoon = false;
+  //   }
+  // } else {
+  //   showCartoon = false;
+  // }
     if(distance < 0.08){
-      showCartoon = true;
-    } else {
-      showCartoon = false;
-    }
-  } else {
-    showCartoon = false;
+
+  if(holdStart === 0){
+    holdStart = Date.now();
   }
+
+  if(Date.now() - holdStart > 700){
+    captureFrame();
+    holdStart = 0;
+  }
+
+} else {
+  holdStart = 0;
+}
 
   // 🔥 แสดงการ์ตูนด้านขวา
   if(showCartoon){
