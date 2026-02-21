@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Real Freeze Split</title>
+<title>Stable Freeze Split</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
@@ -21,7 +21,7 @@ video,canvas{
   top:10px;
   left:10px;
   color:#00ff88;
-  background:rgba(0,0,0,0.5);
+  background:rgba(0,0,0,0.6);
   padding:8px;
   font-size:14px;
 }
@@ -30,158 +30,195 @@ video,canvas{
 <body>
 
 <video id="video" autoplay playsinline></video>
-<canvas id="canvas"></canvas>
+
+<canvas id="bgCanvas"></canvas>
+<canvas id="mainCanvas"></canvas>
+<canvas id="fxCanvas"></canvas>
+
 <div id="log"></div>
 
 <script>
 
-const video = document.getElementById("video");
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-const logDiv = document.getElementById("log");
+const video=document.getElementById("video");
+const bgCanvas=document.getElementById("bgCanvas");
+const mainCanvas=document.getElementById("mainCanvas");
+const fxCanvas=document.getElementById("fxCanvas");
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+const bgCtx=bgCanvas.getContext("2d");
+const mainCtx=mainCanvas.getContext("2d");
+const fxCtx=fxCanvas.getContext("2d");
+
+const logDiv=document.getElementById("log");
+
+[bgCanvas,mainCanvas,fxCanvas].forEach(c=>{
+  c.width=window.innerWidth;
+  c.height=window.innerHeight;
+});
 
 let mode="idle";
 let distanceLog=0;
 let splitTimer=0;
-
-let backgroundImage=null;
 let personImage=null;
+let smoke=[];
 
-// เปิดกล้อง
+// กล้อง
 navigator.mediaDevices.getUserMedia({video:true})
-.then(stream=>video.srcObject=stream);
+.then(s=>video.srcObject=s);
 
 // ===== Hands =====
-const hands = new Hands({
-  locateFile:(file)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+const hands=new Hands({
+ locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
 });
 hands.setOptions({
-  maxNumHands:2,
-  modelComplexity:0,
-  minDetectionConfidence:0.7,
-  minTrackingConfidence:0.7
+ maxNumHands:2,
+ modelComplexity:0,
+ minDetectionConfidence:0.7,
+ minTrackingConfidence:0.7
 });
 
 hands.onResults(res=>{
 
-  if(mode==="idle"){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.drawImage(video,0,0,canvas.width,canvas.height);
-  }
+ if(mode==="idle"){
+   mainCtx.clearRect(0,0,mainCanvas.width,mainCanvas.height);
+   mainCtx.drawImage(video,0,0,mainCanvas.width,mainCanvas.height);
+ }
 
-  if(res.multiHandLandmarks){
+ if(res.multiHandLandmarks){
+   for(const landmarks of res.multiHandLandmarks){
+     drawConnectors(mainCtx,landmarks,HAND_CONNECTIONS,
+       {color:"#00FF00",lineWidth:3});
+     drawLandmarks(mainCtx,landmarks,
+       {color:"#FF0000",lineWidth:2});
+   }
 
-    for(const landmarks of res.multiHandLandmarks){
-      drawConnectors(ctx,landmarks,HAND_CONNECTIONS,
-        {color:"#00FF00",lineWidth:3});
-      drawLandmarks(ctx,landmarks,
-        {color:"#FF0000",lineWidth:2});
-    }
+   if(res.multiHandLandmarks.length===2 && mode==="idle"){
+     const h1=res.multiHandLandmarks[0][8];
+     const h2=res.multiHandLandmarks[1][8];
+     const dx=h1.x-h2.x;
+     const dy=h1.y-h2.y;
+     distanceLog=Math.sqrt(dx*dx+dy*dy);
 
-    if(res.multiHandLandmarks.length===2 && mode==="idle"){
+     if(distanceLog<0.05){
+       triggerEffect();
+     }
+   }
+ }
 
-      const h1=res.multiHandLandmarks[0][8];
-      const h2=res.multiHandLandmarks[1][8];
-
-      const dx=h1.x-h2.x;
-      const dy=h1.y-h2.y;
-      distanceLog=Math.sqrt(dx*dx+dy*dy);
-
-      if(distanceLog<0.05){
-        mode="capture";
-        segmenter.send({image:video});
-      }
-    }
-  }
-
-  updateLog();
+ updateLog();
 });
 
 // ===== Segmentation =====
-const segmenter = new SelfieSegmentation({
-  locateFile:(file)=>`https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
+const segmenter=new SelfieSegmentation({
+ locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${f}`
 });
 segmenter.setOptions({modelSelection:1});
 
 segmenter.onResults(results=>{
 
-  if(mode!=="capture") return;
+ if(mode!=="capture") return;
 
-  // แคปพื้นหลัง
-  backgroundImage=document.createElement("canvas");
-  backgroundImage.width=canvas.width;
-  backgroundImage.height=canvas.height;
-  backgroundImage.getContext("2d")
-    .drawImage(video,0,0,canvas.width,canvas.height);
+ // freeze background
+ bgCtx.drawImage(video,0,0,bgCanvas.width,bgCanvas.height);
 
-  // แคปตัวคน
-  const tempCanvas=document.createElement("canvas");
-  tempCanvas.width=canvas.width;
-  tempCanvas.height=canvas.height;
-  const tctx=tempCanvas.getContext("2d");
+ // extract person
+ const temp=document.createElement("canvas");
+ temp.width=bgCanvas.width;
+ temp.height=bgCanvas.height;
+ const t=temp.getContext("2d");
 
-  tctx.drawImage(results.segmentationMask,
-    0,0,canvas.width,canvas.height);
+ t.drawImage(results.segmentationMask,0,0,temp.width,temp.height);
+ t.globalCompositeOperation="source-in";
+ t.drawImage(video,0,0,temp.width,temp.height);
 
-  tctx.globalCompositeOperation="source-in";
+ personImage=temp;
 
-  tctx.drawImage(video,0,0,
-    canvas.width,canvas.height);
-
-  personImage=tempCanvas;
-
-  mode="split";
-  splitTimer=120;
+ mode="split";
+ splitTimer=120;
 });
 
-// ===== Split Loop =====
-function drawSplit(){
+// ===== เอฟเฟกต์ =====
+function triggerEffect(){
 
-  if(mode==="split" && personImage && backgroundImage){
+ mode="capture";
 
-    ctx.clearRect(0,0,canvas.width,canvas.height);
+ // ควัน 1 ครั้ง
+ for(let i=0;i<30;i++){
+   smoke.push({
+     x:fxCanvas.width/2,
+     y:fxCanvas.height/2,
+     size:20+Math.random()*30,
+     alpha:1,
+     vx:(Math.random()-0.5)*5,
+     vy:(Math.random()-0.5)*5
+   });
+ }
 
-    // พื้นหลังนิ่ง
-    ctx.drawImage(backgroundImage,0,0,
-      canvas.width,canvas.height);
-
-    // แยกร่าง 10
-    for(let i=1;i<=5;i++){
-      ctx.globalAlpha=0.4;
-      ctx.drawImage(personImage,-40*i,0,
-        canvas.width,canvas.height);
-      ctx.drawImage(personImage,40*i,0,
-        canvas.width,canvas.height);
-    }
-
-    ctx.globalAlpha=1;
-
-    splitTimer--;
-    if(splitTimer<=0){
-      mode="idle";
-      backgroundImage=null;
-      personImage=null;
-    }
-  }
-
-  requestAnimationFrame(drawSplit);
+ // เรียก segmentation หลังควัน
+ setTimeout(()=>{
+   segmenter.send({image:video});
+ },600);
 }
-drawSplit();
+
+// ===== loop วาด split + smoke =====
+function drawFX(){
+
+ fxCtx.clearRect(0,0,fxCanvas.width,fxCanvas.height);
+
+ // ควัน
+ for(let i=smoke.length-1;i>=0;i--){
+   let p=smoke[i];
+   p.x+=p.vx;
+   p.y+=p.vy;
+   p.alpha-=0.03;
+
+   fxCtx.beginPath();
+   fxCtx.arc(p.x,p.y,p.size,0,Math.PI*2);
+   fxCtx.fillStyle="rgba(200,200,200,"+p.alpha+")";
+   fxCtx.fill();
+
+   if(p.alpha<=0) smoke.splice(i,1);
+ }
+
+ // split
+ if(mode==="split" && personImage){
+   mainCtx.clearRect(0,0,mainCanvas.width,mainCanvas.height);
+
+   // วาดพื้นหลังนิ่ง
+   mainCtx.drawImage(bgCanvas,0,0);
+
+   // แยกเฉพาะคน
+   for(let i=1;i<=5;i++){
+     mainCtx.globalAlpha=0.4;
+     mainCtx.drawImage(personImage,-40*i,0,
+       mainCanvas.width,mainCanvas.height);
+     mainCtx.drawImage(personImage,40*i,0,
+       mainCanvas.width,mainCanvas.height);
+   }
+
+   mainCtx.globalAlpha=1;
+
+   splitTimer--;
+   if(splitTimer<=0){
+     mode="idle";
+     personImage=null;
+   }
+ }
+
+ requestAnimationFrame(drawFX);
+}
+drawFX();
 
 function updateLog(){
-  logDiv.innerHTML=
-    "MODE: "+mode+"<br>"+
-    "DISTANCE: "+distanceLog.toFixed(4)+"<br>"+
-    "SPLIT TIMER: "+splitTimer;
+ logDiv.innerHTML=
+ "MODE: "+mode+"<br>"+
+ "DISTANCE: "+distanceLog.toFixed(4)+"<br>"+
+ "SPLIT TIMER: "+splitTimer+"<br>"+
+ "Smoke: "+smoke.length;
 }
 
-// loop hands
 function loop(){
-  hands.send({image:video});
-  requestAnimationFrame(loop);
+ hands.send({image:video});
+ requestAnimationFrame(loop);
 }
 video.addEventListener("loadeddata",loop);
 
