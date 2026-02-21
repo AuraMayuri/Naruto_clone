@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Slow Hand Detection</title>
+<title>Hand Smoke Effect</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
@@ -41,18 +41,15 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-let detected = false;
 let lastProcessTime = 0;
-const PROCESS_INTERVAL = 250; // วิเคราะห์ทุก 250ms
+const PROCESS_INTERVAL = 250;
+
+let smokeParticles = [];
 
 // เปิดกล้อง
 async function initCamera(){
   const stream = await navigator.mediaDevices.getUserMedia({
-    video:{
-      width:640,
-      height:480,
-      frameRate:24
-    }
+    video:{ width:640, height:480, frameRate:24 }
   });
   video.srcObject = stream;
 }
@@ -71,12 +68,50 @@ hands.setOptions({
   minTrackingConfidence:0.7
 });
 
+// 🔥 สร้างควัน
+function createSmoke(x,y){
+  for(let i=0;i<12;i++){
+    smokeParticles.push({
+      x:x,
+      y:y,
+      size:20+Math.random()*20,
+      alpha:1,
+      vx:(Math.random()-0.5)*1.5,
+      vy:-Math.random()*2-1
+    });
+  }
+}
+
+// 🔥 อัพเดทควัน
+function updateSmoke(){
+  for(let i=smokeParticles.length-1;i>=0;i--){
+    let p = smokeParticles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.alpha -= 0.02;
+
+    if(p.alpha <= 0){
+      smokeParticles.splice(i,1);
+    }
+  }
+}
+
+// 🔥 วาดควัน
+function drawSmoke(){
+  for(let p of smokeParticles){
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
+    ctx.fillStyle="rgba(200,200,200,"+p.alpha+")";
+    ctx.fill();
+  }
+}
+
 hands.onResults(results=>{
 
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.drawImage(video,0,0,canvas.width,canvas.height);
 
-  let distanceText = "Waiting...";
+  let distanceText="Waiting...";
 
   if(results.multiHandLandmarks &&
      results.multiHandLandmarks.length===2){
@@ -84,7 +119,6 @@ hands.onResults(results=>{
     const hand1 = results.multiHandLandmarks[0];
     const hand2 = results.multiHandLandmarks[1];
 
-    // ใช้ปลายนิ้วชี้ (landmark 8)
     const p1 = hand1[8];
     const p2 = hand2[8];
 
@@ -92,7 +126,7 @@ hands.onResults(results=>{
     const dy = p1.y - p2.y;
     const distance = Math.sqrt(dx*dx + dy*dy);
 
-    distanceText = "Distance: " + distance.toFixed(3);
+    distanceText="Distance: "+distance.toFixed(3);
 
     for(const landmarks of results.multiHandLandmarks){
       drawConnectors(ctx,landmarks,HAND_CONNECTIONS,
@@ -102,38 +136,27 @@ hands.onResults(results=>{
     }
 
     if(distance < 0.06){
-      detected = true;
-    }else{
-      detected = false;
+      // สร้างควันตรงกลางจอ
+      createSmoke(canvas.width/2, canvas.height/2);
     }
-  }else{
-    detected = false;
   }
 
-  // แสดงค่า distance
   ctx.fillStyle="white";
   ctx.font="24px Arial";
   ctx.fillText(distanceText,20,40);
 
-  // ถ้าตรวจจับสำเร็จ
-  if(detected){
-    ctx.fillStyle="red";
-    ctx.font="bold 60px Arial";
-    ctx.fillText("DETECTED!",canvas.width/2-150,canvas.height/2);
-  }
+  updateSmoke();
+  drawSmoke();
 
 });
 
-// 🔥 loop แบบหน่วงเวลา
+// loop หน่วงเวลา
 function detectLoop(){
-
   const now = Date.now();
-
   if(now - lastProcessTime > PROCESS_INTERVAL){
     hands.send({image:video});
     lastProcessTime = now;
   }
-
   requestAnimationFrame(detectLoop);
 }
 
