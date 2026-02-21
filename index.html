@@ -106,6 +106,8 @@ segmenter.onResults(results=>{
 
  if(mode!=="capture") return;
 
+ logDiv.innerHTML += "<br>Segmentation: RECEIVED";
+
  // แคปพื้นหลัง
  frozenBackground=document.createElement("canvas");
  frozenBackground.width=canvas.width;
@@ -113,17 +115,25 @@ segmenter.onResults(results=>{
  frozenBackground.getContext("2d")
   .drawImage(video,0,0,canvas.width,canvas.height);
 
- // ตัดตัวคน
+ // ===== ตัดคนแบบ Safari-safe =====
  const temp=document.createElement("canvas");
  temp.width=canvas.width;
  temp.height=canvas.height;
  const t=temp.getContext("2d");
 
- t.drawImage(results.segmentationMask,0,0,temp.width,temp.height);
- t.globalCompositeOperation="source-in";
+ // 1. วาดวิดีโอก่อน
  t.drawImage(video,0,0,temp.width,temp.height);
 
+ // 2. ใช้ destination-in
+ t.globalCompositeOperation="destination-in";
+
+ // 3. วาด mask ทับ
+ t.drawImage(results.segmentationMask,
+   0,0,temp.width,temp.height);
+
  personImage=temp;
+
+ logDiv.innerHTML += "<br>Mask applied";
 
  mode="split";
 });
