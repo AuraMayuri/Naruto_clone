@@ -2,10 +2,9 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Advanced Split</title>
+<title>Real Split Clone</title>
 
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
 
 <style>
 body{margin:0;overflow:hidden;background:black;}
@@ -25,177 +24,131 @@ video,canvas{
 
 <script>
 
-const video = document.getElementById("video");
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
+const video=document.getElementById("video");
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+canvas.width=window.innerWidth;
+canvas.height=window.innerHeight;
 
-let PROCESS_INTERVAL = 250;
-let lastProcessTime = 0;
-
-let smoke = [];
-let splitActive = false;
-let splitTimer = 0;
-
-let backgroundImage = null;
-let effectCooldown = false;
+let segmentationMask=null;
+let splitActive=false;
+let smokeParticles=[];
+let cooldown=false;
 
 // เปิดกล้อง
-async function initCamera(){
-  const stream = await navigator.mediaDevices.getUserMedia({
-    video:{ width:640,height:480,frameRate:24 }
+async function init(){
+  const stream=await navigator.mediaDevices.getUserMedia({
+    video:{width:640,height:480}
   });
-  video.srcObject = stream;
+  video.srcObject=stream;
 }
-initCamera();
+init();
 
-// MediaPipe
-const hands = new Hands({
+// โหลด segmentation
+const segmenter=new SelfieSegmentation({
   locateFile:(file)=>{
-    return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+    return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`;
   }
 });
 
-hands.setOptions({
-  maxNumHands:2,
-  modelComplexity:0,
-  minDetectionConfidence:0.7,
-  minTrackingConfidence:0.7
+segmenter.setOptions({
+  modelSelection:1
+});
+
+segmenter.onResults(results=>{
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // วาดพื้นหลังปกติ
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+
+  if(splitActive){
+
+    // ใช้ mask ตัดคน
+    ctx.save();
+    ctx.globalCompositeOperation='destination-in';
+    ctx.drawImage(results.segmentationMask,0,0,
+      canvas.width,canvas.height);
+    ctx.restore();
+
+    // วาดร่าง 10 ตัว
+    for(let i=1;i<=5;i++){
+
+      ctx.globalAlpha=0.4;
+      ctx.drawImage(video,-30*i,0,
+        canvas.width,canvas.height);
+
+      ctx.globalAlpha=0.4;
+      ctx.drawImage(video,30*i,0,
+        canvas.width,canvas.height);
+    }
+
+    ctx.globalAlpha=1;
+  }
+
+  updateSmoke();
+  drawSmoke();
 });
 
 // ===== ควันครั้งเดียว =====
-function createSmokeBurst(x,y){
-  for(let i=0;i<20;i++){
-    smoke.push({
-      x:x,
-      y:y,
+function createSmoke(){
+  for(let i=0;i<25;i++){
+    smokeParticles.push({
+      x:canvas.width/2,
+      y:canvas.height/2,
       size:20+Math.random()*30,
       alpha:1,
-      vx:(Math.random()-0.5)*3,
-      vy:(Math.random()-0.5)*3
+      vx:(Math.random()-0.5)*4,
+      vy:(Math.random()-0.5)*4
     });
   }
 }
 
 function updateSmoke(){
-  for(let i=smoke.length-1;i>=0;i--){
-    let s=smoke[i];
-    s.x+=s.vx;
-    s.y+=s.vy;
-    s.alpha-=0.04;
-    if(s.alpha<=0){
-      smoke.splice(i,1);
-    }
+  for(let i=smokeParticles.length-1;i>=0;i--){
+    let p=smokeParticles[i];
+    p.x+=p.vx;
+    p.y+=p.vy;
+    p.alpha-=0.03;
+    if(p.alpha<=0) smokeParticles.splice(i,1);
   }
 }
 
 function drawSmoke(){
-  for(let s of smoke){
+  for(let p of smokeParticles){
     ctx.beginPath();
-    ctx.arc(s.x,s.y,s.size,0,Math.PI*2);
-    ctx.fillStyle="rgba(200,200,200,"+s.alpha+")";
+    ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
+    ctx.fillStyle="rgba(200,200,200,"+p.alpha+")";
     ctx.fill();
   }
 }
 
-// ===== ตรวจจับ =====
-hands.onResults(results=>{
+// ===== Trigger ทดสอบ (แตะจอเพื่อแยกร่าง) =====
+canvas.addEventListener("click",()=>{
+  if(cooldown) return;
 
-  ctx.clearRect(0,0,canvas.width,canvas.height);
+  cooldown=true;
+  splitActive=true;
+  createSmoke();
 
-  if(splitActive && backgroundImage){
-    ctx.drawImage(backgroundImage,0,0,
-      canvas.width,canvas.height);
-  }else{
-    ctx.drawImage(video,0,0,
-      canvas.width,canvas.height);
-  }
+  setTimeout(()=>{
+    splitActive=false;
+  },1500);
 
-  // ===== แยกร่าง 10 ร่าง =====
-  if(splitActive){
-
-    for(let i=1;i<=5;i++){
-
-      ctx.globalAlpha=0.4;
-      ctx.drawImage(video,-40*i,-20*i,
-        canvas.width,canvas.height);
-
-      ctx.globalAlpha=0.4;
-      ctx.drawImage(video,40*i,-20*i,
-        canvas.width,canvas.height);
-    }
-
-    ctx.globalAlpha=1;
-
-    splitTimer--;
-    if(splitTimer<=0){
-      splitActive=false;
-      backgroundImage=null;
-    }
-  }
-
-  if(results.multiHandLandmarks &&
-     results.multiHandLandmarks.length===2 &&
-     !effectCooldown){
-
-    const h1=results.multiHandLandmarks[0];
-    const h2=results.multiHandLandmarks[1];
-
-    const p1=h1[8];
-    const p2=h2[8];
-
-    const dx=p1.x-p2.x;
-    const dy=p1.y-p2.y;
-    const dist=Math.sqrt(dx*dx+dy*dy);
-
-    if(dist<0.06){
-
-      effectCooldown=true;
-
-      // 📸 เก็บพื้นหลังครั้งเดียว
-      backgroundImage=document.createElement("canvas");
-      backgroundImage.width=canvas.width;
-      backgroundImage.height=canvas.height;
-      backgroundImage
-        .getContext("2d")
-        .drawImage(video,0,0,
-          canvas.width,canvas.height);
-
-      // 🌫 ควันครั้งเดียว
-      createSmokeBurst(
-        canvas.width/2,
-        canvas.height/2
-      );
-
-      // 👻 เปิดแยกร่าง
-      splitActive=true;
-      splitTimer=80;
-
-      setTimeout(()=>{
-        effectCooldown=false;
-      },2000);
-    }
-  }
-
-  updateSmoke();
-  drawSmoke();
-
+  setTimeout(()=>{
+    cooldown=false;
+  },2000);
 });
 
 // loop
-function detectLoop(){
-  const now=Date.now();
-  if(now-lastProcessTime>PROCESS_INTERVAL){
-    hands.send({image:video});
-    lastProcessTime=now;
-  }
-  requestAnimationFrame(detectLoop);
+function loop(){
+  segmenter.send({image:video});
+  requestAnimationFrame(loop);
 }
 
 video.addEventListener("loadeddata",()=>{
-  detectLoop();
+  loop();
 });
 
 </script>
