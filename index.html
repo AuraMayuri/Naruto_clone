@@ -53,6 +53,11 @@ let finished=false;
 let splitDelay = 1200;      // หน่วงก่อนแยก (ms)
 let splitSpacing = 90;     // ระยะห่างซ้ายขวา
 let backSpacing = 70;      // ระยะถอยหลัง
+ 
+let splitProgress = 0;     // 0 → 1
+let splitSpeed = 0.02;     // ความเร็วการแยก (ยิ่งน้อยยิ่งช้า)
+let maxSpacing = 90;       // ระยะห่างสูงสุดซ้ายขวา
+let maxBackSpacing = 70;   // ระยะหลังสูงสุด
 
 // กล้อง
 navigator.mediaDevices.getUserMedia({video:true})
@@ -202,38 +207,51 @@ function animate(){
  }
 
  // แยกร่าง
- if(mode==="split" && personImage){
+if(mode==="split" && personImage){
 
-   // หลัง 3
-for(let i=1;i<=3;i++){
-  ctx.globalAlpha=0.25;
-  ctx.drawImage(personImage,
-    0,
-    -backSpacing*i,
-    canvas.width,
-    canvas.height
-  );
+  // เพิ่ม progress ทีละนิด
+  if(splitProgress < 1){
+    splitProgress += splitSpeed;
+  }
+
+  let currentSpacing = maxSpacing * splitProgress;
+  let currentBack = maxBackSpacing * splitProgress;
+
+  logDiv.innerHTML += "<br>Progress: " + splitProgress.toFixed(2);
+
+  // หลัง 3 (เข้มขึ้น)
+  for(let i=1;i<=3;i++){
+    ctx.globalAlpha=0.4;
+    ctx.drawImage(personImage,
+      0,
+      -currentBack*i,
+      canvas.width,
+      canvas.height
+    );
+  }
+
+  // ซ้าย 7 ขวา 7 (เข้มขึ้น)
+  for(let i=1;i<=7;i++){
+    ctx.globalAlpha=0.75;   // เข้มขึ้นจากเดิม 0.5
+    ctx.drawImage(personImage,
+      -currentSpacing*i,
+      0,
+      canvas.width,
+      canvas.height
+    );
+
+    ctx.drawImage(personImage,
+      currentSpacing*i,
+      0,
+      canvas.width,
+      canvas.height
+    );
+  }
+
+  ctx.globalAlpha=1;
+
+  finished = true;
 }
-
-// ซ้าย 7 ขวา 7
-for(let i=1;i<=7;i++){
-  ctx.globalAlpha=0.5;
-  ctx.drawImage(personImage,
-    -splitSpacing*i,
-    0,
-    canvas.width,
-    canvas.height
-  );
-
-  ctx.drawImage(personImage,
-    splitSpacing*i,
-    0,
-    canvas.width,
-    canvas.height
-  );
-}
-
-ctx.globalAlpha=1;
 
    finished=true; // จบ ไม่วนอีก
  }
