@@ -2,27 +2,18 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Hand Split + Smoke</title>
+<title>Advanced Split</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
 <style>
-body{
-  margin:0;
-  overflow:hidden;
-  background:black;
-}
-video{
+body{margin:0;overflow:hidden;background:black;}
+video,canvas{
   position:absolute;
   width:100vw;
   height:100vh;
   object-fit:cover;
-}
-canvas{
-  position:absolute;
-  width:100vw;
-  height:100vh;
 }
 </style>
 </head>
@@ -41,17 +32,20 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
+let PROCESS_INTERVAL = 250;
 let lastProcessTime = 0;
-const PROCESS_INTERVAL = 250;
 
-let smokeBursts = [];
+let smoke = [];
 let splitActive = false;
 let splitTimer = 0;
+
+let backgroundImage = null;
+let effectCooldown = false;
 
 // เปิดกล้อง
 async function initCamera(){
   const stream = await navigator.mediaDevices.getUserMedia({
-    video:{ width:640, height:480, frameRate:24 }
+    video:{ width:640,height:480,frameRate:24 }
   });
   video.srcObject = stream;
 }
@@ -71,109 +65,131 @@ hands.setOptions({
   minTrackingConfidence:0.7
 });
 
-// ===== ควัน =====
+// ===== ควันครั้งเดียว =====
 function createSmokeBurst(x,y){
-  smokeBursts.push({
-    x:x,
-    y:y,
-    size:0,
-    alpha:1
-  });
+  for(let i=0;i<20;i++){
+    smoke.push({
+      x:x,
+      y:y,
+      size:20+Math.random()*30,
+      alpha:1,
+      vx:(Math.random()-0.5)*3,
+      vy:(Math.random()-0.5)*3
+    });
+  }
 }
 
-function drawSmokeBursts(){
-  for(let i=smokeBursts.length-1;i>=0;i--){
-    let s = smokeBursts[i];
-
-    s.size += 10;
-    s.alpha -= 0.05;
-
-    ctx.beginPath();
-    ctx.arc(s.x,s.y,s.size,0,Math.PI*2);
-    ctx.fillStyle = "rgba(220,220,220,"+s.alpha+")";
-    ctx.fill();
-
-    if(s.alpha <= 0){
-      smokeBursts.splice(i,1);
+function updateSmoke(){
+  for(let i=smoke.length-1;i>=0;i--){
+    let s=smoke[i];
+    s.x+=s.vx;
+    s.y+=s.vy;
+    s.alpha-=0.04;
+    if(s.alpha<=0){
+      smoke.splice(i,1);
     }
   }
 }
 
-// ===== ตรวจจับมือ =====
+function drawSmoke(){
+  for(let s of smoke){
+    ctx.beginPath();
+    ctx.arc(s.x,s.y,s.size,0,Math.PI*2);
+    ctx.fillStyle="rgba(200,200,200,"+s.alpha+")";
+    ctx.fill();
+  }
+}
+
+// ===== ตรวจจับ =====
 hands.onResults(results=>{
 
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // วาดภาพหลักก่อน
-  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  if(splitActive && backgroundImage){
+    ctx.drawImage(backgroundImage,0,0,
+      canvas.width,canvas.height);
+  }else{
+    ctx.drawImage(video,0,0,
+      canvas.width,canvas.height);
+  }
 
-  // ===== แยกร่าง =====
+  // ===== แยกร่าง 10 ร่าง =====
   if(splitActive){
 
-    ctx.globalAlpha = 0.5;
-    ctx.drawImage(video,-50,-80,
-      canvas.width,canvas.height);
+    for(let i=1;i<=5;i++){
 
-    ctx.globalAlpha = 0.3;
-    ctx.drawImage(video,50,-80,
-      canvas.width,canvas.height);
+      ctx.globalAlpha=0.4;
+      ctx.drawImage(video,-40*i,-20*i,
+        canvas.width,canvas.height);
 
-    ctx.globalAlpha = 1;
+      ctx.globalAlpha=0.4;
+      ctx.drawImage(video,40*i,-20*i,
+        canvas.width,canvas.height);
+    }
+
+    ctx.globalAlpha=1;
 
     splitTimer--;
-    if(splitTimer <= 0){
-      splitActive = false;
+    if(splitTimer<=0){
+      splitActive=false;
+      backgroundImage=null;
     }
   }
-
-  let distanceText="Waiting...";
 
   if(results.multiHandLandmarks &&
-     results.multiHandLandmarks.length===2){
+     results.multiHandLandmarks.length===2 &&
+     !effectCooldown){
 
-    const hand1 = results.multiHandLandmarks[0];
-    const hand2 = results.multiHandLandmarks[1];
+    const h1=results.multiHandLandmarks[0];
+    const h2=results.multiHandLandmarks[1];
 
-    const p1 = hand1[8];
-    const p2 = hand2[8];
+    const p1=h1[8];
+    const p2=h2[8];
 
-    const dx = p1.x - p2.x;
-    const dy = p1.y - p2.y;
-    const distance = Math.sqrt(dx*dx + dy*dy);
+    const dx=p1.x-p2.x;
+    const dy=p1.y-p2.y;
+    const dist=Math.sqrt(dx*dx+dy*dy);
 
-    distanceText="Distance: "+distance.toFixed(3);
+    if(dist<0.06){
 
-    for(const landmarks of results.multiHandLandmarks){
-      drawConnectors(ctx,landmarks,HAND_CONNECTIONS,
-        {color:"lime",lineWidth:2});
-      drawLandmarks(ctx,landmarks,
-        {color:"red",lineWidth:1});
-    }
+      effectCooldown=true;
 
-    if(distance < 0.06){
+      // 📸 เก็บพื้นหลังครั้งเดียว
+      backgroundImage=document.createElement("canvas");
+      backgroundImage.width=canvas.width;
+      backgroundImage.height=canvas.height;
+      backgroundImage
+        .getContext("2d")
+        .drawImage(video,0,0,
+          canvas.width,canvas.height);
 
-      // เปิดแยกร่าง
-      splitActive = true;
-      splitTimer = 60;
+      // 🌫 ควันครั้งเดียว
+      createSmokeBurst(
+        canvas.width/2,
+        canvas.height/2
+      );
 
-      // สร้างควันกลางจอ
-      createSmokeBurst(canvas.width/2, canvas.height/2);
+      // 👻 เปิดแยกร่าง
+      splitActive=true;
+      splitTimer=80;
+
+      setTimeout(()=>{
+        effectCooldown=false;
+      },2000);
     }
   }
 
-  ctx.fillStyle="white";
-  ctx.font="24px Arial";
-  ctx.fillText(distanceText,20,40);
+  updateSmoke();
+  drawSmoke();
 
-  drawSmokeBursts();
 });
 
-// ===== Loop หน่วงเวลา =====
+// loop
 function detectLoop(){
-  const now = Date.now();
-  if(now - lastProcessTime > PROCESS_INTERVAL){
+  const now=Date.now();
+  if(now-lastProcessTime>PROCESS_INTERVAL){
     hands.send({image:video});
-    lastProcessTime = now;
+    lastProcessTime=now;
   }
   requestAnimationFrame(detectLoop);
 }
