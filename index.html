@@ -82,27 +82,23 @@ btn.onclick = async () => {
 let isCloning = false;
 let clones = [];
   let debugText = "";
-  let cloneCount = 0;
-let holdStart = 0;
+//   let cloneCount = 0;
+// let holdStart = 0;
 
-  hands.onResults(results=>{
+  
+  
+hands.onResults(results=>{
 
   ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
 
-  // 🔥 วาดร่างซ้อน (ไม่ต้อง capture)
-  for(let i=1;i<=cloneCount;i++){
-    ctx.globalAlpha = 0.25;
-    ctx.drawImage(video,
-      -20*i,   // เลื่อนซ้าย
-      -40*i,   // เลื่อนขึ้น
-      canvas.width,
-      canvas.height
-    );
-  }
-
-  ctx.globalAlpha = 1;
-  ctx.drawImage(video,0,0,
-    canvas.width,canvas.height);
+  // วาดร่างซ้อนก่อน
+  clones.forEach((img,i)=>{
+    ctx.globalAlpha=0.5;
+    ctx.drawImage(img,0,-50*(i+1),
+      canvas.width,canvas.height);
+  });
+  ctx.globalAlpha=1;
 
   if(results.multiHandLandmarks &&
      results.multiHandLandmarks.length===2){
@@ -117,7 +113,7 @@ let holdStart = 0;
     const dy = index1.y - index2.y;
     const distance = Math.sqrt(dx*dx + dy*dy);
 
-    // วาดเส้นเขียวแดง
+    // วาดเส้น
     for(const landmarks of results.multiHandLandmarks){
       drawConnectors(ctx,landmarks,HAND_CONNECTIONS,
         {color:"lime",lineWidth:3});
@@ -125,22 +121,22 @@ let holdStart = 0;
         {color:"red",lineWidth:2});
     }
 
+    
+    debugText = "distance: " + distance.toFixed(3);
+    ctx.fillStyle="yellow";
+    ctx.font="20px Arial";
+    ctx.fillText(debugText,20,40);
+
     if(distance < 0.05){
 
-      if(holdStart===0){
+      if(holdStart === 0){
         holdStart = Date.now();
       }
 
-      if(Date.now() - holdStart > 800){
-        cloneCount++;
-        if(cloneCount > 3){
-          cloneCount = 3;
-        }
-
-        // เอฟเฟคแฟลช
-        flash.style.opacity=1;
-        setTimeout(()=>flash.style.opacity=0,150);
-
+      if(Date.now() - holdStart > 800 && !isCloning){
+        isCloning = true;
+        createClone();
+        setTimeout(()=>{ isCloning=false; },1500);
         holdStart = 0;
       }
 
@@ -149,65 +145,6 @@ let holdStart = 0;
     }
   }
 });
-  
-// hands.onResults(results=>{
-
-//   ctx.clearRect(0,0,canvas.width,canvas.height);
-//   ctx.drawImage(video,0,0,canvas.width,canvas.height);
-
-//   // วาดร่างซ้อนก่อน
-//   clones.forEach((img,i)=>{
-//     ctx.globalAlpha=0.5;
-//     ctx.drawImage(img,0,-50*(i+1),
-//       canvas.width,canvas.height);
-//   });
-//   ctx.globalAlpha=1;
-
-//   if(results.multiHandLandmarks &&
-//      results.multiHandLandmarks.length===2){
-
-//     const hand1 = results.multiHandLandmarks[0];
-//     const hand2 = results.multiHandLandmarks[1];
-
-//     const index1 = hand1[8];
-//     const index2 = hand2[8];
-
-//     const dx = index1.x - index2.x;
-//     const dy = index1.y - index2.y;
-//     const distance = Math.sqrt(dx*dx + dy*dy);
-
-//     // วาดเส้น
-//     for(const landmarks of results.multiHandLandmarks){
-//       drawConnectors(ctx,landmarks,HAND_CONNECTIONS,
-//         {color:"lime",lineWidth:3});
-//       drawLandmarks(ctx,landmarks,
-//         {color:"red",lineWidth:2});
-//     }
-
-    
-//     debugText = "distance: " + distance.toFixed(3);
-//     ctx.fillStyle="yellow";
-//     ctx.font="20px Arial";
-//     ctx.fillText(debugText,20,40);
-
-//     if(distance < 0.05){
-
-//       if(holdStart === 0){
-//         holdStart = Date.now();
-//       }
-
-//       if(Date.now() - holdStart > 800 && !isCloning){
-//         isCloning = true;
-//         createClone();
-//         setTimeout(()=>{ isCloning=false; },1500);
-//         holdStart = 0;
-//       }
-
-//     } else {
-//       holdStart = 0;
-//     }
-//   }
-// });
 
 //   function createClone(){
 
