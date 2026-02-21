@@ -84,8 +84,7 @@ let clones = [];
   let debugText = "";
 //   let cloneCount = 0;
 // let holdStart = 0;
-const cartoon = new Image();
-cartoon.src = "https://i.imgur.com/4AiXzf8.png"; // รูปตัวอย่าง
+
 let showCartoon = false;
   
   
@@ -128,15 +127,36 @@ hands.onResults(results => {
 
   // 🔥 แสดงการ์ตูนด้านขวา
   if(showCartoon){
-    ctx.drawImage(
-      cartoon,
-      canvas.width - 180,
-      50,
-      150,
-      150
-    );
-  }
+  drawCartoon(canvas.width - 100,100);
+}
+
+  
+function drawCartoon(x,y){
+
+  ctx.beginPath();
+  ctx.arc(x,y,60,0,Math.PI*2);
+  ctx.fillStyle="yellow";
+  ctx.fill();
+
+  // ตา
+  ctx.beginPath();
+  ctx.arc(x-20,y-15,8,0,Math.PI*2);
+  ctx.arc(x+20,y-15,8,0,Math.PI*2);
+  ctx.fillStyle="black";
+  ctx.fill();
+
+  // ปาก
+  ctx.beginPath();
+  ctx.arc(x,y+10,25,0,Math.PI);
+  ctx.strokeStyle="black";
+  ctx.lineWidth=3;
+  ctx.stroke();
+}
+  
 });
+
+
+  
 
 
 //   function createClone(){
