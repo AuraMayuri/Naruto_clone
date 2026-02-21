@@ -2,7 +2,8 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Hand Split Effect</title>
+<title>Hand Debug Mode</title>
+
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
@@ -12,19 +13,12 @@ body{
   overflow:hidden;
   background:black;
 }
-
 video{
   position:absolute;
   width:100vw;
   height:100vh;
   object-fit:cover;
 }
-
-#videoClone{
-  opacity:0;
-  transform:translate(-40px,-80px);
-}
-
 canvas{
   position:absolute;
   width:100vw;
@@ -35,14 +29,12 @@ canvas{
 
 <body>
 
-<video id="videoMain" autoplay playsinline></video>
-<video id="videoClone" autoplay playsinline></video>
+<video id="video" autoplay playsinline></video>
 <canvas id="canvas"></canvas>
 
 <script>
 
-const videoMain = document.getElementById("videoMain");
-const videoClone = document.getElementById("videoClone");
+const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
@@ -60,13 +52,11 @@ async function initCamera(){
       frameRate:24
     }
   });
-
-  videoMain.srcObject = stream;
-  videoClone.srcObject = stream;
+  video.srcObject = stream;
 }
-
 initCamera();
 
+// ตั้งค่า MediaPipe
 const hands = new Hands({
   locateFile:(file)=>{
     return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
@@ -83,6 +73,10 @@ hands.setOptions({
 hands.onResults(results=>{
 
   ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+
+  let detected = false;
+  let distanceText = "No Hands";
 
   if(results.multiHandLandmarks &&
      results.multiHandLandmarks.length===2){
@@ -97,6 +91,8 @@ hands.onResults(results=>{
     const dy = p1.y - p2.y;
     const distance = Math.sqrt(dx*dx + dy*dy);
 
+    distanceText = "Distance: " + distance.toFixed(3);
+
     // วาดเส้นเขียวแดง
     for(const landmarks of results.multiHandLandmarks){
       drawConnectors(ctx,landmarks,HAND_CONNECTIONS,
@@ -105,22 +101,14 @@ hands.onResults(results=>{
         {color:"red",lineWidth:1});
     }
 
-    // ถ้าพนมมือ
     if(distance < 0.08){
 
       if(holdStart===0){
         holdStart = Date.now();
       }
 
-      if(Date.now() - holdStart > 700){
-
-        videoClone.style.opacity="0.5";
-
-        setTimeout(()=>{
-          videoClone.style.opacity="0";
-        },2000);
-
-        holdStart=0;
+      if(Date.now() - holdStart > 600){
+        detected = true;
       }
 
     }else{
@@ -129,15 +117,28 @@ hands.onResults(results=>{
   }else{
     holdStart=0;
   }
+
+  // 🔎 แสดงค่า distance มุมซ้ายบน
+  ctx.fillStyle="white";
+  ctx.font="24px Arial";
+  ctx.fillText(distanceText,20,40);
+
+  // 🚨 ถ้าตรวจจับสำเร็จ
+  if(detected){
+    ctx.fillStyle="red";
+    ctx.font="bold 60px Arial";
+    ctx.fillText("DETECTED!",canvas.width/2-150,canvas.height/2);
+  }
+
 });
 
-// ส่งเฟรมเข้า mediapipe
+// loop ส่งเฟรมเข้า mediapipe
 async function detect(){
-  await hands.send({image:videoMain});
+  await hands.send({image:video});
   requestAnimationFrame(detect);
 }
 
-videoMain.addEventListener("loadeddata",()=>{
+video.addEventListener("loadeddata",()=>{
   detect();
 });
 
