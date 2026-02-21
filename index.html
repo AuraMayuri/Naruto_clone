@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Freeze Split Debug</title>
+<title>Real Freeze Split</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
@@ -21,13 +21,12 @@ video,canvas{
   top:10px;
   left:10px;
   color:#00ff88;
-  font-size:14px;
   background:rgba(0,0,0,0.5);
   padding:8px;
+  font-size:14px;
 }
 </style>
 </head>
-
 <body>
 
 <video id="video" autoplay playsinline></video>
@@ -51,8 +50,6 @@ let splitTimer=0;
 let backgroundImage=null;
 let personImage=null;
 
-let smoke=[];
-
 // เปิดกล้อง
 navigator.mediaDevices.getUserMedia({video:true})
 .then(stream=>video.srcObject=stream);
@@ -70,8 +67,10 @@ hands.setOptions({
 
 hands.onResults(res=>{
 
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  if(mode==="idle"){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  }
 
   if(res.multiHandLandmarks){
 
@@ -92,13 +91,11 @@ hands.onResults(res=>{
       distanceLog=Math.sqrt(dx*dx+dy*dy);
 
       if(distanceLog<0.05){
-        triggerSmoke();
+        mode="capture";
+        segmenter.send({image:video});
       }
     }
   }
-
-  updateSmoke();
-  drawSmoke();
 
   updateLog();
 });
@@ -111,15 +108,47 @@ segmenter.setOptions({modelSelection:1});
 
 segmenter.onResults(results=>{
 
-  if(mode==="split" && backgroundImage && personImage){
+  if(mode!=="capture") return;
+
+  // แคปพื้นหลัง
+  backgroundImage=document.createElement("canvas");
+  backgroundImage.width=canvas.width;
+  backgroundImage.height=canvas.height;
+  backgroundImage.getContext("2d")
+    .drawImage(video,0,0,canvas.width,canvas.height);
+
+  // แคปตัวคน
+  const tempCanvas=document.createElement("canvas");
+  tempCanvas.width=canvas.width;
+  tempCanvas.height=canvas.height;
+  const tctx=tempCanvas.getContext("2d");
+
+  tctx.drawImage(results.segmentationMask,
+    0,0,canvas.width,canvas.height);
+
+  tctx.globalCompositeOperation="source-in";
+
+  tctx.drawImage(video,0,0,
+    canvas.width,canvas.height);
+
+  personImage=tempCanvas;
+
+  mode="split";
+  splitTimer=120;
+});
+
+// ===== Split Loop =====
+function drawSplit(){
+
+  if(mode==="split" && personImage && backgroundImage){
 
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    // วาดพื้นหลังนิ่ง
+    // พื้นหลังนิ่ง
     ctx.drawImage(backgroundImage,0,0,
       canvas.width,canvas.height);
 
-    // วาดร่างแยกจาก personImage
+    // แยกร่าง 10
     for(let i=1;i<=5;i++){
       ctx.globalAlpha=0.4;
       ctx.drawImage(personImage,-40*i,0,
@@ -137,92 +166,19 @@ segmenter.onResults(results=>{
       personImage=null;
     }
   }
-});
 
-function triggerSmoke(){
-
-  mode="smoke";
-
-  // แคปพื้นหลัง
-  backgroundImage=document.createElement("canvas");
-  backgroundImage.width=canvas.width;
-  backgroundImage.height=canvas.height;
-  backgroundImage.getContext("2d")
-    .drawImage(video,0,0,canvas.width,canvas.height);
-
-  // สร้างควัน
-  for(let i=0;i<30;i++){
-    smoke.push({
-      x:canvas.width/2,
-      y:canvas.height/2,
-      size:20+Math.random()*30,
-      alpha:1,
-      vx:(Math.random()-0.5)*5,
-      vy:(Math.random()-0.5)*5
-    });
-  }
-
-  // รอควันจาง แล้วแคปตัวคน
-  setTimeout(()=>{
-
-    segmenter.send({image:video});
-
-    setTimeout(()=>{
-
-      const tempCanvas=document.createElement("canvas");
-      tempCanvas.width=canvas.width;
-      tempCanvas.height=canvas.height;
-      const tctx=tempCanvas.getContext("2d");
-
-      // วาด mask
-      tctx.drawImage(
-        segmenter._lastResults.segmentationMask,
-        0,0,canvas.width,canvas.height
-      );
-      tctx.globalCompositeOperation="source-in";
-      tctx.drawImage(video,0,0,
-        canvas.width,canvas.height);
-
-      personImage=tempCanvas;
-
-      mode="split";
-      splitTimer=120;
-
-    },100);
-
-  },700);
+  requestAnimationFrame(drawSplit);
 }
+drawSplit();
 
-// ===== Smoke =====
-function updateSmoke(){
-  for(let i=smoke.length-1;i>=0;i--){
-    let p=smoke[i];
-    p.x+=p.vx;
-    p.y+=p.vy;
-    p.alpha-=0.04;
-    if(p.alpha<=0) smoke.splice(i,1);
-  }
-}
-
-function drawSmoke(){
-  for(let p of smoke){
-    ctx.beginPath();
-    ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
-    ctx.fillStyle="rgba(200,200,200,"+p.alpha+")";
-    ctx.fill();
-  }
-}
-
-// ===== Log =====
 function updateLog(){
   logDiv.innerHTML=
     "MODE: "+mode+"<br>"+
     "DISTANCE: "+distanceLog.toFixed(4)+"<br>"+
-    "SPLIT TIMER: "+splitTimer+"<br>"+
-    "Smoke Particles: "+smoke.length;
+    "SPLIT TIMER: "+splitTimer;
 }
 
-// loop
+// loop hands
 function loop(){
   hands.send({image:video});
   requestAnimationFrame(loop);
