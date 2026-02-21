@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Hand Debug Mode</title>
+<title>Slow Hand Detection</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
@@ -41,7 +41,9 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-let holdStart = 0;
+let detected = false;
+let lastProcessTime = 0;
+const PROCESS_INTERVAL = 250; // วิเคราะห์ทุก 250ms
 
 // เปิดกล้อง
 async function initCamera(){
@@ -56,7 +58,6 @@ async function initCamera(){
 }
 initCamera();
 
-// ตั้งค่า MediaPipe
 const hands = new Hands({
   locateFile:(file)=>{
     return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
@@ -75,8 +76,7 @@ hands.onResults(results=>{
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.drawImage(video,0,0,canvas.width,canvas.height);
 
-  let detected = false;
-  let distanceText = "No Hands";
+  let distanceText = "Waiting...";
 
   if(results.multiHandLandmarks &&
      results.multiHandLandmarks.length===2){
@@ -84,8 +84,9 @@ hands.onResults(results=>{
     const hand1 = results.multiHandLandmarks[0];
     const hand2 = results.multiHandLandmarks[1];
 
-    const p1 = hand1[9];
-    const p2 = hand2[9];
+    // ใช้ปลายนิ้วชี้ (landmark 8)
+    const p1 = hand1[8];
+    const p2 = hand2[8];
 
     const dx = p1.x - p2.x;
     const dy = p1.y - p2.y;
@@ -93,7 +94,6 @@ hands.onResults(results=>{
 
     distanceText = "Distance: " + distance.toFixed(3);
 
-    // วาดเส้นเขียวแดง
     for(const landmarks of results.multiHandLandmarks){
       drawConnectors(ctx,landmarks,HAND_CONNECTIONS,
         {color:"lime",lineWidth:2});
@@ -101,29 +101,21 @@ hands.onResults(results=>{
         {color:"red",lineWidth:1});
     }
 
-    if(distance < 0.08){
-
-      if(holdStart===0){
-        holdStart = Date.now();
-      }
-
-      if(Date.now() - holdStart > 600){
-        detected = true;
-      }
-
+    if(distance < 0.06){
+      detected = true;
     }else{
-      holdStart=0;
+      detected = false;
     }
   }else{
-    holdStart=0;
+    detected = false;
   }
 
-  // 🔎 แสดงค่า distance มุมซ้ายบน
+  // แสดงค่า distance
   ctx.fillStyle="white";
   ctx.font="24px Arial";
   ctx.fillText(distanceText,20,40);
 
-  // 🚨 ถ้าตรวจจับสำเร็จ
+  // ถ้าตรวจจับสำเร็จ
   if(detected){
     ctx.fillStyle="red";
     ctx.font="bold 60px Arial";
@@ -132,14 +124,21 @@ hands.onResults(results=>{
 
 });
 
-// loop ส่งเฟรมเข้า mediapipe
-async function detect(){
-  await hands.send({image:video});
-  requestAnimationFrame(detect);
+// 🔥 loop แบบหน่วงเวลา
+function detectLoop(){
+
+  const now = Date.now();
+
+  if(now - lastProcessTime > PROCESS_INTERVAL){
+    hands.send({image:video});
+    lastProcessTime = now;
+  }
+
+  requestAnimationFrame(detectLoop);
 }
 
 video.addEventListener("loadeddata",()=>{
-  detect();
+  detectLoop();
 });
 
 </script>
