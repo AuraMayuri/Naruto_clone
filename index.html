@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Real Split Clone</title>
+<title>Perfect Split</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
 
@@ -31,9 +31,8 @@ const ctx=canvas.getContext("2d");
 canvas.width=window.innerWidth;
 canvas.height=window.innerHeight;
 
-let segmentationMask=null;
 let splitActive=false;
-let smokeParticles=[];
+let smoke=[];
 let cooldown=false;
 
 // เปิดกล้อง
@@ -52,39 +51,40 @@ const segmenter=new SelfieSegmentation({
   }
 });
 
-segmenter.setOptions({
-  modelSelection:1
-});
+segmenter.setOptions({ modelSelection:1 });
 
 segmenter.onResults(results=>{
 
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // วาดพื้นหลังปกติ
+  // ===== 1. วาดพื้นหลัง =====
   ctx.drawImage(video,0,0,canvas.width,canvas.height);
 
   if(splitActive){
 
-    // ใช้ mask ตัดคน
+    // ===== 2. สร้าง layer คนที่ถูกตัด =====
     ctx.save();
-    ctx.globalCompositeOperation='destination-in';
-    ctx.drawImage(results.segmentationMask,0,0,
-      canvas.width,canvas.height);
-    ctx.restore();
 
-    // วาดร่าง 10 ตัว
+    // วาด mask ก่อน
+    ctx.drawImage(results.segmentationMask,
+      0,0,canvas.width,canvas.height);
+
+    // ให้ video แสดงเฉพาะส่วนที่ mask ขาว
+    ctx.globalCompositeOperation='source-in';
+
+    // ===== 3. วาด 10 ร่าง =====
     for(let i=1;i<=5;i++){
 
       ctx.globalAlpha=0.4;
-      ctx.drawImage(video,-30*i,0,
+      ctx.drawImage(video,-35*i,0,
         canvas.width,canvas.height);
 
-      ctx.globalAlpha=0.4;
-      ctx.drawImage(video,30*i,0,
+      ctx.drawImage(video,35*i,0,
         canvas.width,canvas.height);
     }
 
     ctx.globalAlpha=1;
+    ctx.restore();
   }
 
   updateSmoke();
@@ -94,7 +94,7 @@ segmenter.onResults(results=>{
 // ===== ควันครั้งเดียว =====
 function createSmoke(){
   for(let i=0;i<25;i++){
-    smokeParticles.push({
+    smoke.push({
       x:canvas.width/2,
       y:canvas.height/2,
       size:20+Math.random()*30,
@@ -106,17 +106,17 @@ function createSmoke(){
 }
 
 function updateSmoke(){
-  for(let i=smokeParticles.length-1;i>=0;i--){
-    let p=smokeParticles[i];
+  for(let i=smoke.length-1;i>=0;i--){
+    let p=smoke[i];
     p.x+=p.vx;
     p.y+=p.vy;
     p.alpha-=0.03;
-    if(p.alpha<=0) smokeParticles.splice(i,1);
+    if(p.alpha<=0) smoke.splice(i,1);
   }
 }
 
 function drawSmoke(){
-  for(let p of smokeParticles){
+  for(let p of smoke){
     ctx.beginPath();
     ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
     ctx.fillStyle="rgba(200,200,200,"+p.alpha+")";
@@ -124,7 +124,7 @@ function drawSmoke(){
   }
 }
 
-// ===== Trigger ทดสอบ (แตะจอเพื่อแยกร่าง) =====
+// ===== trigger แตะหน้าจอ =====
 canvas.addEventListener("click",()=>{
   if(cooldown) return;
 
