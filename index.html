@@ -232,7 +232,7 @@ if(mode==="split" && personImage){
 
    // ===== 1. ร่างหลัง 3 =====
    for(let i=1;i<=3;i++){
-     ctx.globalAlpha=0.8;   // เข้มขึ้น
+     ctx.globalAlpha=1;   // เข้มขึ้น
      ctx.drawImage(
        personImage,
        0,
@@ -244,7 +244,7 @@ if(mode==="split" && personImage){
 
    // ===== 2. ร่างซ้าย 7 ขวา 7 (ซ้อนหลัง) =====
    for(let i=1;i<=7;i++){
-     ctx.globalAlpha=0.80;   // เข้มขึ้นชัด
+     ctx.globalAlpha=1;   // เข้มขึ้นชัด
 
      ctx.drawImage(
        personImage,
