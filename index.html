@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Smoke Poof Effect</title>
+<title>Hand Split + Smoke</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
@@ -45,6 +45,8 @@ let lastProcessTime = 0;
 const PROCESS_INTERVAL = 250;
 
 let smokeBursts = [];
+let splitActive = false;
+let splitTimer = 0;
 
 // เปิดกล้อง
 async function initCamera(){
@@ -55,6 +57,7 @@ async function initCamera(){
 }
 initCamera();
 
+// MediaPipe
 const hands = new Hands({
   locateFile:(file)=>{
     return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
@@ -68,7 +71,7 @@ hands.setOptions({
   minTrackingConfidence:0.7
 });
 
-// 🔥 สร้างควันระเบิด
+// ===== ควัน =====
 function createSmokeBurst(x,y){
   smokeBursts.push({
     x:x,
@@ -78,13 +81,12 @@ function createSmokeBurst(x,y){
   });
 }
 
-// 🔥 วาดควันระเบิด
 function drawSmokeBursts(){
   for(let i=smokeBursts.length-1;i>=0;i--){
     let s = smokeBursts[i];
 
-    s.size += 8;      // ขยายเร็ว
-    s.alpha -= 0.05;  // จางลง
+    s.size += 10;
+    s.alpha -= 0.05;
 
     ctx.beginPath();
     ctx.arc(s.x,s.y,s.size,0,Math.PI*2);
@@ -97,10 +99,32 @@ function drawSmokeBursts(){
   }
 }
 
+// ===== ตรวจจับมือ =====
 hands.onResults(results=>{
 
   ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // วาดภาพหลักก่อน
   ctx.drawImage(video,0,0,canvas.width,canvas.height);
+
+  // ===== แยกร่าง =====
+  if(splitActive){
+
+    ctx.globalAlpha = 0.5;
+    ctx.drawImage(video,-50,-80,
+      canvas.width,canvas.height);
+
+    ctx.globalAlpha = 0.3;
+    ctx.drawImage(video,50,-80,
+      canvas.width,canvas.height);
+
+    ctx.globalAlpha = 1;
+
+    splitTimer--;
+    if(splitTimer <= 0){
+      splitActive = false;
+    }
+  }
 
   let distanceText="Waiting...";
 
@@ -127,6 +151,12 @@ hands.onResults(results=>{
     }
 
     if(distance < 0.06){
+
+      // เปิดแยกร่าง
+      splitActive = true;
+      splitTimer = 60;
+
+      // สร้างควันกลางจอ
       createSmokeBurst(canvas.width/2, canvas.height/2);
     }
   }
@@ -136,10 +166,9 @@ hands.onResults(results=>{
   ctx.fillText(distanceText,20,40);
 
   drawSmokeBursts();
-
 });
 
-// loop หน่วงเวลา
+// ===== Loop หน่วงเวลา =====
 function detectLoop(){
   const now = Date.now();
   if(now - lastProcessTime > PROCESS_INTERVAL){
