@@ -2,134 +2,94 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Ninja Clone Safari Fix</title>
-<style>
-body{margin:0;overflow:hidden;background:black;}
-video{display:none;}
-canvas{position:absolute;top:0;left:0;}
-#startBtn{
-  position:absolute;
-  top:40%;
-  left:50%;
-  transform:translate(-50%,-50%);
-  padding:20px 40px;
-  font-size:22px;
-  z-index:10;
-}
-</style>
-</head>
-<body>
-
-<button id="startBtn">เริ่มคาถา</button>
-
-<video id="video" playsinline muted></video>
-<canvas id="canvas"></canvas>
-
+<title>Hand Split Effect</title>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
+<style>
+body{
+  margin:0;
+  overflow:hidden;
+  background:black;
+}
+
+video{
+  position:absolute;
+  width:100vw;
+  height:100vh;
+  object-fit:cover;
+}
+
+#videoClone{
+  opacity:0;
+  transform:translate(-40px,-80px);
+}
+
+canvas{
+  position:absolute;
+  width:100vw;
+  height:100vh;
+}
+</style>
+</head>
+
+<body>
+
+<video id="videoMain" autoplay playsinline></video>
+<video id="videoClone" autoplay playsinline></video>
+<canvas id="canvas"></canvas>
+
 <script>
-const video = document.getElementById("video");
+
+const videoMain = document.getElementById("videoMain");
+const videoClone = document.getElementById("videoClone");
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
-const btn = document.getElementById("startBtn");
 
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-btn.onclick = async () => {
-
-  btn.style.display="none";
-
-  const stream = await navigator.mediaDevices.getUserMedia({
-    video:{ facingMode:"user" }
-  });
-
-  video.srcObject = stream;
-
-  await video.play();
-
-  const hands = new Hands({
-    locateFile: file =>
-      `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-  });
-
-  // 🔥 ปิด GPU เพื่อลดปัญหา iPad
-  hands.setOptions({
-    maxNumHands:2,
-    modelComplexity:0,
-    minDetectionConfidence:0.6,
-    minTrackingConfidence:0.6
-  });
-
-  // hands.onResults(results=>{
-
-  //   ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  //   ctx.drawImage(video,0,0,
-  //     canvas.width,canvas.height);
-
-  //   if(results.multiHandLandmarks){
-  //     for(const landmarks of results.multiHandLandmarks){
-  //       drawConnectors(ctx,landmarks,HAND_CONNECTIONS,
-  //         {color:"lime",lineWidth:3});
-  //       drawLandmarks(ctx,landmarks,
-  //         {color:"red",lineWidth:2});
-  //     }
-  //   }
-  // });
- let cloneImage = null;
-let isCapturing = false;
 let holdStart = 0;
-let isCloning = false;
-let clones = [];
-  let debugText = "";
-let showCartoon = false;
-  
-  async function captureFrame() {
 
-  if(isCapturing) return;
-  isCapturing = true;
+// เปิดกล้อง
+async function initCamera(){
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video:{
+      width:640,
+      height:480,
+      frameRate:24
+    }
+  });
 
-  try {
-    const bitmap = await createImageBitmap(video);
-    cloneImage = bitmap;
-  } catch(e) {
-    console.log("capture error", e);
-  }
-
-  isCapturing = false;
+  videoMain.srcObject = stream;
+  videoClone.srcObject = stream;
 }
 
-  
-hands.onResults(results => {
+initCamera();
+
+const hands = new Hands({
+  locateFile:(file)=>{
+    return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+  }
+});
+
+hands.setOptions({
+  maxNumHands:2,
+  modelComplexity:0,
+  minDetectionConfidence:0.7,
+  minTrackingConfidence:0.7
+});
+
+hands.onResults(results=>{
 
   ctx.clearRect(0,0,canvas.width,canvas.height);
-    if(cloneImage){
-  ctx.globalAlpha = 0.5;
-  ctx.drawImage(
-    cloneImage,
-    -30,   // เลื่อนซ้าย
-    -60,   // เลื่อนขึ้น
-    canvas.width,
-    canvas.height
-  );
-  ctx.globalAlpha = 1;
-}
-
-
-  
-  ctx.drawImage(video,0,0,canvas.width,canvas.height);
-  
-
 
   if(results.multiHandLandmarks &&
-     results.multiHandLandmarks.length === 2){
+     results.multiHandLandmarks.length===2){
 
     const hand1 = results.multiHandLandmarks[0];
     const hand2 = results.multiHandLandmarks[1];
 
-    // ใช้จุดกลางฝ่ามือ (landmark 9)
     const p1 = hand1[9];
     const p2 = hand2[9];
 
@@ -145,101 +105,42 @@ hands.onResults(results => {
         {color:"red",lineWidth:1});
     }
 
-    // ถ้ามือประสานใกล้กัน
-  //   if(distance < 0.08){
-  //     showCartoon = true;
-  //   } else {
-  //     showCartoon = false;
-  //   }
-  // } else {
-  //   showCartoon = false;
-  // }
+    // ถ้าพนมมือ
     if(distance < 0.08){
 
-  if(holdStart === 0){
-    holdStart = Date.now();
+      if(holdStart===0){
+        holdStart = Date.now();
+      }
+
+      if(Date.now() - holdStart > 700){
+
+        videoClone.style.opacity="0.5";
+
+        setTimeout(()=>{
+          videoClone.style.opacity="0";
+        },2000);
+
+        holdStart=0;
+      }
+
+    }else{
+      holdStart=0;
+    }
+  }else{
+    holdStart=0;
   }
-
-  if(Date.now() - holdStart > 700){
-    captureFrame();
-    holdStart = 0;
-  }
-
-} else {
-  holdStart = 0;
-}
-
-  // 🔥 แสดงการ์ตูนด้านขวา
-  if(showCartoon){
-  drawCartoon(canvas.width - 100,100);
-}
-ctx.fillStyle="white";
-ctx.fillText("dist: "+distance.toFixed(3),20,40);
-
 });
 
-  
-function drawCartoon(x,y){
-
-  ctx.beginPath();
-  ctx.arc(x,y,60,0,Math.PI*2);
-  ctx.fillStyle="yellow";
-  ctx.fill();
-
-  // ตา
-  ctx.beginPath();
-  ctx.arc(x-20,y-15,8,0,Math.PI*2);
-  ctx.arc(x+20,y-15,8,0,Math.PI*2);
-  ctx.fillStyle="black";
-  ctx.fill();
-
-  // ปาก
-  ctx.beginPath();
-  ctx.arc(x,y+10,25,0,Math.PI);
-  ctx.strokeStyle="black";
-  ctx.lineWidth=3;
-  ctx.stroke();
+// ส่งเฟรมเข้า mediapipe
+async function detect(){
+  await hands.send({image:videoMain});
+  requestAnimationFrame(detect);
 }
-  
-  
 
+videoMain.addEventListener("loadeddata",()=>{
+  detect();
+});
 
-//   function createClone(){
-
-//   // แคปภาพจาก canvas ปัจจุบัน (เบากว่า)
-//   const img = new Image();
-//   img.src = canvas.toDataURL("image/jpeg", 0.6);
-
-//   img.onload = () => {
-//     clones.push(img);
-//   };
-
-//   // จำกัดไม่ให้ร่างเยอะเกิน
-//   if(clones.length > 3){
-//     clones.shift();
-//   }
-
-//   // เอฟเฟคแฟลช
-//   flash.style.opacity = 1;
-//   setTimeout(()=>flash.style.opacity=0,150);
-
-//   // เสียง (กัน error)
-//   try{
-//     const audio = new Audio(
-//       "https://actions.google.com/sounds/v1/cartoon/poof.ogg"
-//     );
-//     audio.play();
-//   }catch(e){}
-// }
- 
-
-  async function detectLoop(){
-    await hands.send({image:video});
-    requestAnimationFrame(detectLoop);
-  }
-
-  detectLoop();
-};
 </script>
 
 </body>
