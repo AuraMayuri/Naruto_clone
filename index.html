@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Clone Split Depth</title>
+<title>Clone Split Center Top</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
@@ -55,12 +55,12 @@ let backCount=3;      // ด้านหลัง
 let revealIndex=0;
 let revealSpeed=4;
 let frameCounter=0;
-
-let safeSpacing=60;   // จะคำนวณใหม่หลัง capture
+let safeSpacing=60;
 
 navigator.mediaDevices.getUserMedia({video:true})
 .then(s=>video.srcObject=s);
 
+// ===== HANDS =====
 const hands=new Hands({
  locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
 });
@@ -102,6 +102,7 @@ hands.onResults(res=>{
  updateLog();
 });
 
+// ===== SEGMENT =====
 const segmenter=new SelfieSegmentation({
  locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${f}`
 });
@@ -135,12 +136,12 @@ segmenter.onResults(results=>{
 
  personImage=temp;
 
- // คำนวณ spacing ให้ไม่หลุดเฟรม
- safeSpacing = (canvas.width/2) / (cloneCount+1);
+ safeSpacing=(canvas.width/2)/(cloneCount+1);
 
  mode="split";
 });
 
+// ===== TRIGGER =====
 function triggerCapture(){
 
  if(finished) return;
@@ -163,6 +164,7 @@ function triggerCapture(){
  },400);
 }
 
+// ===== ANIMATION =====
 function animate(){
 
  ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -190,13 +192,13 @@ function animate(){
 
    frameCounter++;
 
-   if(frameCounter % revealSpeed === 0 &&
-      revealIndex < cloneCount){
+   if(frameCounter % revealSpeed===0 &&
+      revealIndex<cloneCount){
       revealIndex++;
    }
 
-   // ===== ด้านหลัง =====
-   for(let i=1;i<=backCount;i++){
+   // ===== ด้านหลังลึก =====
+   for(let i=backCount;i>=1;i--){
      let scale=1-(i*0.08);
      let yOffset=i*40;
 
@@ -211,10 +213,9 @@ function animate(){
      ctx.restore();
    }
 
-   // ===== ซ้าย ขวา =====
-   for(let i=1;i<=revealIndex;i++){
-
-     let x = safeSpacing*i;
+   // ===== ซ้าย ขวา (วาดก่อน เพื่อให้อยู่หลังตัวกลาง) =====
+   for(let i=revealIndex;i>=1;i--){
+     let x=safeSpacing*i;
 
      ctx.drawImage(personImage,
        -x,0,
@@ -225,7 +226,7 @@ function animate(){
        canvas.width,canvas.height);
    }
 
-   // ===== ตัวกลาง =====
+   // ===== ตัวกลาง วาดสุดท้าย (อยู่บนสุด) =====
    ctx.drawImage(personImage,0,0,
      canvas.width,canvas.height);
 
