@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Final Split</title>
+<title>Clone Split Smooth</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
@@ -23,7 +23,8 @@ video,canvas{
  color:#00ff88;
  background:rgba(0,0,0,0.6);
  padding:8px;
- font-size:14px;
+ font-size:13px;
+ font-family:monospace;
 }
 </style>
 </head>
@@ -50,7 +51,13 @@ let personImage=null;
 let smoke=[];
 let finished=false;
 
-// กล้อง
+// ===== ปรับได้ตรงนี้ =====
+let cloneCount=10;
+let maxSpacing=80;
+let splitProgress=0;
+let splitSpeed=0.02; // ยิ่งน้อยยิ่งแยกช้า
+
+// ===== กล้อง =====
 navigator.mediaDevices.getUserMedia({video:true})
 .then(s=>video.srcObject=s);
 
@@ -73,6 +80,7 @@ hands.onResults(res=>{
  }
 
  if(res.multiHandLandmarks && mode==="idle"){
+
    for(const landmarks of res.multiHandLandmarks){
      drawConnectors(ctx,landmarks,HAND_CONNECTIONS,
        {color:"#00FF00",lineWidth:3});
@@ -101,92 +109,48 @@ const segmenter=new SelfieSegmentation({
  locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${f}`
 });
 segmenter.setOptions({modelSelection:1});
- segmenter.onResults(results=>{
+
+segmenter.onResults(results=>{
 
  if(mode!=="capture") return;
 
- logDiv.innerHTML += "<br>Segmentation: RECEIVED";
-
- // ===== Freeze background =====
+ // freeze background
  frozenBackground=document.createElement("canvas");
  frozenBackground.width=canvas.width;
  frozenBackground.height=canvas.height;
- const bgctx=frozenBackground.getContext("2d");
- bgctx.drawImage(video,0,0,canvas.width,canvas.height);
+ frozenBackground.getContext("2d")
+  .drawImage(video,0,0,canvas.width,canvas.height);
 
- // ===== เตรียม mask canvas =====
+ // mask
  const maskCanvas=document.createElement("canvas");
  maskCanvas.width=canvas.width;
  maskCanvas.height=canvas.height;
- const mctx=maskCanvas.getContext("2d");
- mctx.drawImage(results.segmentationMask,
-   0,0,canvas.width,canvas.height);
+ maskCanvas.getContext("2d")
+  .drawImage(results.segmentationMask,
+    0,0,canvas.width,canvas.height);
 
- // ===== สร้าง canvas สำหรับคน =====
  const temp=document.createElement("canvas");
  temp.width=canvas.width;
  temp.height=canvas.height;
  const t=temp.getContext("2d");
 
- // วาดวิดีโอก่อน
  t.drawImage(video,0,0,temp.width,temp.height);
-
- // ใช้ mask ตัด
  t.globalCompositeOperation="destination-in";
  t.drawImage(maskCanvas,0,0,temp.width,temp.height);
 
  personImage=temp;
 
- logDiv.innerHTML += "<br>Mask applied SUCCESS";
-
  mode="split";
 });
 
-// segmenter.onResults(results=>{
-
-//  if(mode!=="capture") return;
-
-//  logDiv.innerHTML += "<br>Segmentation: RECEIVED";
-
-//  // แคปพื้นหลัง
-//  frozenBackground=document.createElement("canvas");
-//  frozenBackground.width=canvas.width;
-//  frozenBackground.height=canvas.height;
-//  frozenBackground.getContext("2d")
-//   .drawImage(video,0,0,canvas.width,canvas.height);
-
-//  // ===== ตัดคนแบบ Safari-safe =====
-//  const temp=document.createElement("canvas");
-//  temp.width=canvas.width;
-//  temp.height=canvas.height;
-//  const t=temp.getContext("2d");
-
-//  // 1. วาดวิดีโอก่อน
-//  t.drawImage(video,0,0,temp.width,temp.height);
-
-//  // 2. ใช้ destination-in
-//  t.globalCompositeOperation="destination-in";
-
-//  // 3. วาด mask ทับ
-//  t.drawImage(results.segmentationMask,
-//    0,0,temp.width,temp.height);
-
-//  personImage=temp;
-
-//  logDiv.innerHTML += "<br>Mask applied";
-
-//  mode="split";
-// });
-
-// ===== trigger =====
+// ===== Trigger =====
 function triggerCapture(){
 
  if(finished) return;
 
  mode="capture";
 
- // ควัน 1 ครั้ง
- for(let i=0;i<40;i++){
+ for(let i=0;i<50;i++){
    smoke.push({
      x:canvas.width/2,
      y:canvas.height/2,
@@ -199,25 +163,24 @@ function triggerCapture(){
 
  setTimeout(()=>{
    segmenter.send({image:video});
- },500);
+ },400);
 }
 
-// ===== Loop =====
+// ===== Animation =====
 function animate(){
 
  ctx.clearRect(0,0,canvas.width,canvas.height);
 
- // วาดพื้นหลัง freeze ถ้ามี
  if(frozenBackground){
    ctx.drawImage(frozenBackground,0,0);
  }
 
- // ควัน
+ // smoke
  for(let i=smoke.length-1;i>=0;i--){
    let p=smoke[i];
    p.x+=p.vx;
    p.y+=p.vy;
-   p.alpha-=0.04;
+   p.alpha-=0.03;
 
    ctx.beginPath();
    ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
@@ -227,58 +190,38 @@ function animate(){
    if(p.alpha<=0) smoke.splice(i,1);
  }
 
- // แยกร่าง
-if(mode==="split" && personImage){
+ // split animation
+ if(mode==="split" && personImage){
 
-   // ===== 1. ร่างหลัง 3 =====
-   for(let i=1;i<=3;i++){
-     ctx.globalAlpha=0.9;   // เข้มขึ้น
-     ctx.drawImage(
-       personImage,
-       0,
-       -35*i,
-       canvas.width,
-       canvas.height
-     );
+   if(splitProgress<1){
+     splitProgress+=splitSpeed;
    }
 
-   // ===== 2. ร่างซ้าย 10 ขวา 10 (ซ้อนหลัง) =====
-   for(let i=1;i<=10;i++){
-     ctx.globalAlpha=1;   // เข้มขึ้นชัด
+   let currentSpacing=maxSpacing*splitProgress;
 
-     ctx.drawImage(
-       personImage,
-       -45*i,
-       0,
-       canvas.width,
-       canvas.height
-     );
+   // ซ้าย ขวา (ค่อย ๆ ถ่าง)
+   for(let i=1;i<=cloneCount;i++){
+     ctx.globalAlpha=0.8-(i*0.03);
 
-     ctx.drawImage(
-       personImage,
-       45*i,
-       0,
-       canvas.width,
-       canvas.height
-     );
+     ctx.drawImage(personImage,
+       -currentSpacing*i,0,
+       canvas.width,canvas.height);
+
+     ctx.drawImage(personImage,
+       currentSpacing*i,0,
+       canvas.width,canvas.height);
    }
 
-   // ===== 3. วาดร่างกลาง "ทับสุดท้าย" =====
+   // ตัวกลางทับสุดท้าย
    ctx.globalAlpha=1;
-   ctx.drawImage(
-     personImage,
-     0,
-     0,
-     canvas.width,
-     canvas.height
-   );
+   ctx.drawImage(personImage,0,0,
+     canvas.width,canvas.height);
 
-   ctx.globalAlpha=1;
+   if(splitProgress>=1){
+     finished=true;
+   }
+ }
 
-   finished=true; // จบ ไม่วนอีก
-}
-
- 
  requestAnimationFrame(animate);
 }
 animate();
@@ -287,7 +230,8 @@ function updateLog(){
  logDiv.innerHTML=
  "MODE: "+mode+"<br>"+
  "DISTANCE: "+distanceLog.toFixed(4)+"<br>"+
- "Smoke: "+smoke.length;
+ "SMOKE: "+smoke.length+"<br>"+
+ "PROGRESS: "+splitProgress.toFixed(2);
 }
 
 function loop(){
