@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Clone Split Anime Stack</title>
+<title>Clone Split Depth</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
@@ -45,24 +45,22 @@ canvas.width=window.innerWidth;
 canvas.height=window.innerHeight;
 
 let mode="idle";
-let distanceLog=0;
 let frozenBackground=null;
 let personImage=null;
 let smoke=[];
 let finished=false;
 
-// ===== ปรับได้ =====
-let cloneCount=12;      // จำนวนต่อข้าง
-let spacing=70;        // ระยะห่าง
-let revealIndex=0;     // จำนวนที่แสดงแล้ว
-let revealSpeed=4;     // ยิ่งน้อยยิ่งช้า (เฟรมต่อการเพิ่ม 1 ตัว)
+let cloneCount=7;     // ต่อข้าง
+let backCount=3;      // ด้านหลัง
+let revealIndex=0;
+let revealSpeed=4;
 let frameCounter=0;
 
-// ===== กล้อง =====
+let safeSpacing=60;   // จะคำนวณใหม่หลัง capture
+
 navigator.mediaDevices.getUserMedia({video:true})
 .then(s=>video.srcObject=s);
 
-// ===== Hands =====
 const hands=new Hands({
  locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
 });
@@ -81,7 +79,6 @@ hands.onResults(res=>{
  }
 
  if(res.multiHandLandmarks && mode==="idle"){
-
    for(const landmarks of res.multiHandLandmarks){
      drawConnectors(ctx,landmarks,HAND_CONNECTIONS,
        {color:"#00FF00",lineWidth:3});
@@ -94,9 +91,9 @@ hands.onResults(res=>{
      const h2=res.multiHandLandmarks[1][8];
      const dx=h1.x-h2.x;
      const dy=h1.y-h2.y;
-     distanceLog=Math.sqrt(dx*dx+dy*dy);
+     const dist=Math.sqrt(dx*dx+dy*dy);
 
-     if(distanceLog<0.05){
+     if(dist<0.05){
        triggerCapture();
      }
    }
@@ -105,7 +102,6 @@ hands.onResults(res=>{
  updateLog();
 });
 
-// ===== Segmentation =====
 const segmenter=new SelfieSegmentation({
  locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${f}`
 });
@@ -139,10 +135,12 @@ segmenter.onResults(results=>{
 
  personImage=temp;
 
+ // คำนวณ spacing ให้ไม่หลุดเฟรม
+ safeSpacing = (canvas.width/2) / (cloneCount+1);
+
  mode="split";
 });
 
-// ===== Trigger =====
 function triggerCapture(){
 
  if(finished) return;
@@ -165,7 +163,6 @@ function triggerCapture(){
  },400);
 }
 
-// ===== Animation =====
 function animate(){
 
  ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -189,7 +186,6 @@ function animate(){
    if(p.alpha<=0) smoke.splice(i,1);
  }
 
- // ===== Anime Frame Stack =====
  if(mode==="split" && personImage){
 
    frameCounter++;
@@ -199,21 +195,37 @@ function animate(){
       revealIndex++;
    }
 
-   // ซ้าย ขวา ทีละตัว
+   // ===== ด้านหลัง =====
+   for(let i=1;i<=backCount;i++){
+     let scale=1-(i*0.08);
+     let yOffset=i*40;
+
+     ctx.save();
+     ctx.translate(canvas.width/2,canvas.height/2+yOffset);
+     ctx.scale(scale,scale);
+     ctx.drawImage(personImage,
+       -canvas.width/2,
+       -canvas.height/2,
+       canvas.width,
+       canvas.height);
+     ctx.restore();
+   }
+
+   // ===== ซ้าย ขวา =====
    for(let i=1;i<=revealIndex;i++){
 
-     ctx.globalAlpha=1; // ไม่จาง
+     let x = safeSpacing*i;
 
      ctx.drawImage(personImage,
-       -spacing*i,0,
+       -x,0,
        canvas.width,canvas.height);
 
      ctx.drawImage(personImage,
-       spacing*i,0,
+       x,0,
        canvas.width,canvas.height);
    }
 
-   // ตัวกลางทับสุดท้าย
+   // ===== ตัวกลาง =====
    ctx.drawImage(personImage,0,0,
      canvas.width,canvas.height);
 
@@ -229,9 +241,9 @@ animate();
 function updateLog(){
  logDiv.innerHTML=
  "MODE: "+mode+"<br>"+
- "DISTANCE: "+distanceLog.toFixed(4)+"<br>"+
+ "REVEAL: "+revealIndex+"/"+cloneCount+"<br>"+
  "SMOKE: "+smoke.length+"<br>"+
- "REVEAL: "+revealIndex+"/"+cloneCount;
+ "SPACING: "+safeSpacing.toFixed(1);
 }
 
 function loop(){
