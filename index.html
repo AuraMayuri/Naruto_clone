@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Clone Split Smooth</title>
+<title>Clone Split Anime Stack</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
@@ -51,11 +51,12 @@ let personImage=null;
 let smoke=[];
 let finished=false;
 
-// ===== ปรับได้ตรงนี้ =====
-let cloneCount=10;
-let maxSpacing=80;
-let splitProgress=0;
-let splitSpeed=0.02; // ยิ่งน้อยยิ่งแยกช้า
+// ===== ปรับได้ =====
+let cloneCount=12;      // จำนวนต่อข้าง
+let spacing=70;        // ระยะห่าง
+let revealIndex=0;     // จำนวนที่แสดงแล้ว
+let revealSpeed=4;     // ยิ่งน้อยยิ่งช้า (เฟรมต่อการเพิ่ม 1 ตัว)
+let frameCounter=0;
 
 // ===== กล้อง =====
 navigator.mediaDevices.getUserMedia({video:true})
@@ -114,14 +115,12 @@ segmenter.onResults(results=>{
 
  if(mode!=="capture") return;
 
- // freeze background
  frozenBackground=document.createElement("canvas");
  frozenBackground.width=canvas.width;
  frozenBackground.height=canvas.height;
  frozenBackground.getContext("2d")
   .drawImage(video,0,0,canvas.width,canvas.height);
 
- // mask
  const maskCanvas=document.createElement("canvas");
  maskCanvas.width=canvas.width;
  maskCanvas.height=canvas.height;
@@ -190,34 +189,35 @@ function animate(){
    if(p.alpha<=0) smoke.splice(i,1);
  }
 
- // split animation
+ // ===== Anime Frame Stack =====
  if(mode==="split" && personImage){
 
-   if(splitProgress<1){
-     splitProgress+=splitSpeed;
+   frameCounter++;
+
+   if(frameCounter % revealSpeed === 0 &&
+      revealIndex < cloneCount){
+      revealIndex++;
    }
 
-   let currentSpacing=maxSpacing*splitProgress;
+   // ซ้าย ขวา ทีละตัว
+   for(let i=1;i<=revealIndex;i++){
 
-   // ซ้าย ขวา (ค่อย ๆ ถ่าง)
-   for(let i=1;i<=cloneCount;i++){
-     ctx.globalAlpha=0.8-(i*0.03);
+     ctx.globalAlpha=1; // ไม่จาง
 
      ctx.drawImage(personImage,
-       -currentSpacing*i,0,
+       -spacing*i,0,
        canvas.width,canvas.height);
 
      ctx.drawImage(personImage,
-       currentSpacing*i,0,
+       spacing*i,0,
        canvas.width,canvas.height);
    }
 
    // ตัวกลางทับสุดท้าย
-   ctx.globalAlpha=1;
    ctx.drawImage(personImage,0,0,
      canvas.width,canvas.height);
 
-   if(splitProgress>=1){
+   if(revealIndex>=cloneCount){
      finished=true;
    }
  }
@@ -231,7 +231,7 @@ function updateLog(){
  "MODE: "+mode+"<br>"+
  "DISTANCE: "+distanceLog.toFixed(4)+"<br>"+
  "SMOKE: "+smoke.length+"<br>"+
- "PROGRESS: "+splitProgress.toFixed(2);
+ "REVEAL: "+revealIndex+"/"+cloneCount;
 }
 
 function loop(){
